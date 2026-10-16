@@ -7,10 +7,14 @@ class OfflineStore {
   static Future<Database> open() async {
     if (_db != null) return _db!;
     final dir = await getApplicationSupportDirectory();
-    _db = await openDatabase('${dir.path}/wasel_local.db', version: 1,
+    _db = await openDatabase('${dir.path}/wasel_local.db', version: 2,
+      onUpgrade: (db, oldVersion, newVersion) async {
+        await db.execute('CREATE TABLE IF NOT EXISTS conversations (id INTEGER PRIMARY KEY, kind TEXT, title TEXT)');
+      },
       onCreate: (db, version) async {
         await db.execute('CREATE TABLE messages (id INTEGER, conversation_id INTEGER, sender_id INTEGER, kind TEXT, content TEXT, created_at TEXT, cloud_purged INTEGER DEFAULT 0, PRIMARY KEY(conversation_id,id))');
         await db.execute('CREATE INDEX idx_local_messages_time ON messages(conversation_id, created_at)');
+        await db.execute('CREATE TABLE conversations (id INTEGER PRIMARY KEY, kind TEXT, title TEXT)');
         await db.execute('CREATE TABLE cached_media (id INTEGER PRIMARY KEY AUTOINCREMENT, message_id INTEGER, conversation_id INTEGER, local_path TEXT, mime_type TEXT, saved_at TEXT)');
       });
     return _db!;
@@ -39,6 +43,23 @@ class OfflineStore {
   static Future<List<Map<String, dynamic>>> messages(int conversationId) async {
     final db = await open();
     return db.query('messages', where: 'conversation_id = ?', whereArgs: [conversationId], orderBy: 'id ASC');
+  }
+
+  static Future<void> saveConversations(List<Map<String, dynamic>> items) async {
+    final db = await open();
+    final batch = db.batch();
+    for (final item in items) {
+      final id = (item['id'] as num?)?.toInt();
+      if (id == null) continue;
+      batch.insert('conversations', {'id': id, 'kind': item['kind'] ?? 'private', 'title': item['title']},
+        conflictAlgorithm: ConflictAlgorithm.replace);
+    }
+    await batch.commit(noResult: true);
+  }
+
+  static Future<List<Map<String, dynamic>>> conversations() async {
+    final db = await open();
+    return db.query('conversations', orderBy: 'id DESC');
   }
 
   static Future<String> saveMediaBytes({
