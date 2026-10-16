@@ -38,7 +38,15 @@ class Message(Base):
     content: Mapped[str | None] = mapped_column(Text, nullable=True)
     reply_to_id: Mapped[int | None] = mapped_column(ForeignKey("messages.id"), nullable=True)
     client_message_id: Mapped[str | None] = mapped_column(String(80), nullable=True)
+    cloud_purged: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
+class MessageReceipt(Base):
+    __tablename__ = "message_receipts"
+    __table_args__ = (UniqueConstraint("message_id", "user_id", name="uq_message_receipt_user"),)
+    id: Mapped[int] = mapped_column(BigInteger, primary_key=True)
+    message_id: Mapped[int] = mapped_column(ForeignKey("messages.id", ondelete="CASCADE"), index=True)
+    user_id: Mapped[int] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"), index=True)
+    saved_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
 class UserBlock(Base):
     __tablename__ = "user_blocks"
     __table_args__ = (UniqueConstraint("blocker_id", "blocked_id"),)
