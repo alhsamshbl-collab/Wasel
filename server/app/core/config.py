@@ -8,6 +8,8 @@ class Settings(BaseSettings):
     cors_origins: str = "http://localhost:3000"
     max_upload_bytes: int = 20 * 1024 * 1024
     upload_dir: str = "./uploads"
+    registration_code: str = "change-this-invite-code"
+    max_users: int = 6
 
     @property
     def cors_origin_list(self) -> list[str]:
