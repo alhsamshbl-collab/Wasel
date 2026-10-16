@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:http/http.dart' as http;
 import 'package:web_socket_channel/web_socket_channel.dart';
+import '../data/offline_store.dart';
 
 class AuthScreen extends StatefulWidget {
   const AuthScreen({super.key});
@@ -169,12 +170,30 @@ class _ChatScreenState extends State<ChatScreen> {
   Future<void> loadHistory() async {
     try {
       final r = await http.get(Uri.parse('$base/api/conversations/${widget.conversationId}/messages'),
-        headers: {'Authorization': 'Bearer ${widget.token}'});
+        headers: {'Authorization': 'Bearer ${widget.token}'}).timeout(const Duration(seconds: 8));
       if (r.statusCode < 200 || r.statusCode >= 300) throw Exception('تعذر تحميل الرسائل');
       final rows = (jsonDecode(r.body) as List).cast<Map<String, dynamic>>();
-      if (mounted) setState(() { messages.addAll(rows); loading = false; });
+      await OfflineStore.saveMessages(widget.conversationId, rows);
+      for (final item in rows) {
+        final id = (item['id'] as num?)?.toInt();
+        if (id == null) continue;
+        try {
+          await http.post(Uri.parse('$base/api/conversations/${widget.conversationId}/messages/$id/ack'),
+            headers: {'Authorization': 'Bearer ${widget.token}'}).timeout(const Duration(seconds: 4));
+        } catch (_) {}
+      }
+      final localRows = await OfflineStore.messages(widget.conversationId);
+      if (mounted) setState(() { messages.addAll(localRows); loading = false; });
       scrollToEnd();
-    } catch (e) { if (mounted) setState(() { error = e.toString(); loading = false; }); }
+    } catch (e) {
+      final localRows = await OfflineStore.messages(widget.conversationId);
+      if (mounted) setState(() {
+        messages.addAll(localRows);
+        error = localRows.isEmpty ? 'لا يوجد سجل محفوظ على هذا الجهاز بعد' : 'وضع عدم الاتصال: تعرض الرسائل المحفوظة محليًا';
+        loading = false;
+      });
+      scrollToEnd();
+    }
   }
   void connect() {
     final root = Uri.parse(base);
@@ -185,7 +204,15 @@ class _ChatScreenState extends State<ChatScreen> {
       subscription = channel!.stream.listen((event) {
         final data = jsonDecode(event as String) as Map<String, dynamic>;
         if (data['type'] == 'message' && mounted) {
-          setState(() => messages.add(data));
+          OfflineStore.saveMessages(widget.conversationId, [data]);
+          final messageId = (data['id'] as num?)?.toInt();
+          if (messageId != null) {
+            http.post(Uri.parse('$base/api/conversations/${widget.conversationId}/messages/$messageId/ack'),
+              headers: {'Authorization': 'Bearer ${widget.token}'}).catchError((_) => http.Response('', 500));
+          }
+          setState(() {
+            if (!messages.any((m) => m['id'] == data['id'])) messages.add(data);
+          });
           scrollToEnd();
         }
       }, onError: (_) { if (mounted) setState(() => connected = false); },
