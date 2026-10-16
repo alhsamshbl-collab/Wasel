@@ -39,7 +39,7 @@ jobs:
           cache: true
       - name: Generate Android platform files if missing
         working-directory: mobile
-        run: flutter create --platforms=android --project-name wasel .
+        run: flutter create --no-pub --platforms=android --project-name wasel .
       - name: Resolve dependencies
         working-directory: mobile
         run: flutter pub get
