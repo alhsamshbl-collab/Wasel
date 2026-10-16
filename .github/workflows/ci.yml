@@ -1,0 +1,54 @@
+name: Wasel CI
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  backend-tests:
+    name: Backend tests (FastAPI)
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: server
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+          cache: pip
+          cache-dependency-path: server/requirements.txt
+      - run: python -m pip install --upgrade pip
+      - run: pip install -r requirements.txt
+      - run: python -m compileall -q app tests
+      - run: pytest -q
+  android-build:
+    name: Flutter Android build
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+          cache: true
+      - name: Generate Android platform files if missing
+        working-directory: mobile
+        run: flutter create --platforms=android --project-name wasel .
+      - name: Resolve dependencies
+        working-directory: mobile
+        run: flutter pub get
+      - name: Analyze Dart code
+        working-directory: mobile
+        run: flutter analyze
+      - name: Build release APK
+        working-directory: mobile
+        run: flutter build apk --release --dart-define=API_BASE_URL=https://example.invalid
+      - uses: actions/upload-artifact@v4
+        if: success()
+        with:
+          name: wasel-android-apk
+          path: mobile/build/app/outputs/flutter-apk/app-release.apk
+          retention-days: 14
