@@ -1,6 +1,7 @@
 from fastapi import APIRouter, Depends, HTTPException, Query
-from sqlalchemy import select, or_, and_
+from sqlalchemy import select, or_, and_, func
 from sqlalchemy.ext.asyncio import AsyncSession
+from app.core.config import settings
 from app.database.session import get_db
 from app.dependencies import current_user
 from app.models import User, Conversation, ConversationMember, Message, UserBlock
@@ -9,6 +10,11 @@ from app.security import hash_password, verify_password, create_access_token
 router = APIRouter()
 @router.post("/auth/register", response_model=TokenOut, status_code=201)
 async def register(data: RegisterIn, db: AsyncSession = Depends(get_db)):
+    if data.invite_code != settings.registration_code:
+        raise HTTPException(403, "رمز الدعوة غير صحيح")
+    count = await db.scalar(select(func.count()).select_from(User))
+    if (count or 0) >= settings.max_users:
+        raise HTTPException(403, "اكتمل عدد الحسابات المسموح به لهذا التطبيق")
     if await db.scalar(select(User.id).where(User.username == data.username)):
         raise HTTPException(409, "اسم المستخدم مستخدم بالفعل")
     user = User(username=data.username, display_name=data.display_name, password_hash=hash_password(data.password))
