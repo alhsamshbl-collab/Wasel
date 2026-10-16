@@ -1,7 +1,9 @@
+import 'dart:async';
 import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:http/http.dart' as http;
+import 'package:web_socket_channel/web_socket_channel.dart';
 
 class AuthScreen extends StatefulWidget {
   const AuthScreen({super.key});
@@ -67,20 +69,169 @@ class _AuthScreenState extends State<AuthScreen> {
             child: Text(register ? 'لديك حساب؟ تسجيل الدخول' : 'ليس لديك حساب؟ أنشئ حسابًا')),
         ]))))));
 }
-class HomeScreen extends StatelessWidget {
+
+class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key, required this.user, required this.token});
   final Map<String, dynamic> user;
   final String token;
   @override
+  State<HomeScreen> createState() => _HomeScreenState();
+}
+class _HomeScreenState extends State<HomeScreen> {
+  static const base = _AuthScreenState.base;
+  List<Map<String, dynamic>> conversations = [];
+  List<Map<String, dynamic>> users = [];
+  bool loading = true;
+  String? error;
+  Map<String, String> userNames = {};
+  Map<String, String> headers() => {'Authorization': 'Bearer ${widget.token}', 'Content-Type': 'application/json'};
+  @override
+  void initState() { super.initState(); load(); }
+  Future<void> load() async {
+    setState(() { loading = true; error = null; });
+    try {
+      final results = await Future.wait([
+        http.get(Uri.parse('$base/api/conversations'), headers: headers()),
+        http.get(Uri.parse('$base/api/users'), headers: headers()),
+      ]);
+      if (results.any((r) => r.statusCode < 200 || r.statusCode >= 300)) throw Exception('تعذر تحميل بيانات الحساب');
+      conversations = (jsonDecode(results[0].body) as List).cast<Map<String, dynamic>>();
+      users = (jsonDecode(results[1].body) as List).cast<Map<String, dynamic>>();
+      userNames = {for (final u in users) '${u['id']}': u['display_name'] as String};
+    } catch (e) { error = e.toString().replaceFirst('Exception: ', ''); }
+    if (mounted) setState(() { loading = false; });
+  }
+  Future<void> startConversation(Map<String, dynamic> other) async {
+    try {
+      final r = await http.post(Uri.parse('$base/api/conversations'), headers: headers(), body: jsonEncode({'user_ids': [other['id']]}));
+      if (r.statusCode < 200 || r.statusCode >= 300) throw Exception((jsonDecode(r.body) as Map)['detail'] ?? 'تعذر بدء المحادثة');
+      final data = jsonDecode(r.body) as Map<String, dynamic>;
+      if (!mounted) return;
+      await Navigator.of(context).push(MaterialPageRoute<void>(builder: (_) => ChatScreen(
+        conversationId: data['id'] as int, token: widget.token, userId: widget.user['id'] as int,
+        title: other['display_name'] as String)));
+      await load();
+    } catch (e) { if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(e.toString().replaceFirst('Exception: ', '')))); }
+  }
+  Future<void> openConversation(Map<String, dynamic> c) async {
+    final title = c['title'] as String? ?? 'محادثة ${c['id']}';
+    await Navigator.of(context).push(MaterialPageRoute<void>(builder: (_) => ChatScreen(
+      conversationId: c['id'] as int, token: widget.token, userId: widget.user['id'] as int, title: title)));
+    if (mounted) load();
+  }
+  @override
   Widget build(BuildContext context) => Scaffold(
-    appBar: AppBar(title: const Text('واصل | Wasel')),
-    body: ListView(padding: const EdgeInsets.all(20), children: [
-      CircleAvatar(radius: 36, child: Text((user['display_name'] as String).substring(0, 1))),
-      const SizedBox(height: 16),
-      Text('أهلًا بك، ${user['display_name']}', style: Theme.of(context).textTheme.headlineSmall, textAlign: TextAlign.center),
-      const SizedBox(height: 12), const Text('تواصل بلا حدود', textAlign: TextAlign.center), const SizedBox(height: 24),
-      const Card(child: ListTile(leading: Icon(Icons.people_outline), title: Text('المستخدمون'), subtitle: Text('واجهة المستخدمين قيد الاستكمال'))),
-      const Card(child: ListTile(leading: Icon(Icons.forum_outlined), title: Text('المحادثات'), subtitle: Text('واجهة المحادثات قيد الاستكمال'))),
+    appBar: AppBar(title: const Text('واصل | Wasel'), actions: [IconButton(onPressed: load, icon: const Icon(Icons.refresh))]),
+    floatingActionButton: FloatingActionButton.extended(onPressed: () => showModalBottomSheet<void>(
+      context: context, showDragHandle: true, builder: (sheetContext) => SafeArea(child: SizedBox(height: 360,
+        child: users.isEmpty ? const Center(child: Text('لا يوجد مستخدمون آخرون بعد')) : ListView(
+          children: [const ListTile(title: Text('ابدأ محادثة جديدة')),...users.map((u) => ListTile(
+            leading: CircleAvatar(child: Text((u['display_name'] as String).substring(0, 1))),
+            title: Text(u['display_name'] as String), subtitle: Text('@${u['username']}'),
+            onTap: () { Navigator.pop(sheetContext); startConversation(u); }))]))),
+      icon: const Icon(Icons.add_comment_outlined), label: const Text('محادثة جديدة')),
+    body: loading ? const Center(child: CircularProgressIndicator()) : error != null
+      ? Center(child: Column(mainAxisSize: MainAxisSize.min, children: [Text(error!), TextButton(onPressed: load, child: const Text('إعادة المحاولة'))]))
+      : RefreshIndicator(onRefresh: load, child: ListView(padding: const EdgeInsets.all(12), children: [
+          ListTile(leading: CircleAvatar(child: Text((widget.user['display_name'] as String).substring(0, 1))),
+            title: Text('أهلًا بك، ${widget.user['display_name']}'), subtitle: const Text('تواصل بلا حدود')),
+          const Divider(),
+          if (conversations.isEmpty) const Padding(padding: EdgeInsets.all(24), child: Text('لا توجد محادثات بعد. اضغط «محادثة جديدة» للبدء.', textAlign: TextAlign.center)),
+          ...conversations.map((c) => Card(child: ListTile(
+            leading: const CircleAvatar(child: Icon(Icons.forum_outlined)),
+            title: Text(c['title'] as String? ?? 'محادثة ${c['id']}'),
+            subtitle: Text(c['kind'] == 'group' ? 'مجموعة' : 'محادثة خاصة'),
+            trailing: const Icon(Icons.chevron_left), onTap: () => openConversation(c)))),
+        ])),
+  );
+}
+
+class ChatScreen extends StatefulWidget {
+  const ChatScreen({super.key, required this.conversationId, required this.token, required this.userId, required this.title});
+  final int conversationId;
+  final String token;
+  final int userId;
+  final String title;
+  @override
+  State<ChatScreen> createState() => _ChatScreenState();
+}
+class _ChatScreenState extends State<ChatScreen> {
+  static const base = _AuthScreenState.base;
+  final input = TextEditingController();
+  final scroll = ScrollController();
+  final messages = <Map<String, dynamic>>[];
+  WebSocketChannel? channel;
+  StreamSubscription<dynamic>? subscription;
+  bool loading = true, connected = false;
+  String? error;
+  @override
+  void initState() { super.initState(); loadHistory(); connect(); }
+  Future<void> loadHistory() async {
+    try {
+      final r = await http.get(Uri.parse('$base/api/conversations/${widget.conversationId}/messages'),
+        headers: {'Authorization': 'Bearer ${widget.token}'});
+      if (r.statusCode < 200 || r.statusCode >= 300) throw Exception('تعذر تحميل الرسائل');
+      final rows = (jsonDecode(r.body) as List).cast<Map<String, dynamic>>();
+      if (mounted) setState(() { messages.addAll(rows); loading = false; });
+      scrollToEnd();
+    } catch (e) { if (mounted) setState(() { error = e.toString(); loading = false; }); }
+  }
+  void connect() {
+    final root = Uri.parse(base);
+    final uri = root.replace(scheme: root.scheme == 'https' ? 'wss' : 'ws',
+      path: '/ws/conversations/${widget.conversationId}', queryParameters: {'token': widget.token});
+    try {
+      channel = WebSocketChannel.connect(uri);
+      subscription = channel!.stream.listen((event) {
+        final data = jsonDecode(event as String) as Map<String, dynamic>;
+        if (data['type'] == 'message' && mounted) {
+          setState(() => messages.add(data));
+          scrollToEnd();
+        }
+      }, onError: (_) { if (mounted) setState(() => connected = false); },
+        onDone: () { if (mounted) setState(() => connected = false); });
+      channel!.ready.then((_) { if (mounted) setState(() => connected = true); })
+        .catchError((Object _) { if (mounted) setState(() => connected = false); });
+    } catch (_) { connected = false; }
+  }
+  void scrollToEnd() {
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (scroll.hasClients) scroll.animateTo(scroll.position.maxScrollExtent,
+        duration: const Duration(milliseconds: 180), curve: Curves.easeOut);
+    });
+  }
+  void send() {
+    final text = input.text.trim();
+    if (text.isEmpty || channel == null || !connected) return;
+    channel!.sink.add(jsonEncode({'content': text}));
+    input.clear();
+  }
+  @override
+  void dispose() { subscription?.cancel(); channel?.sink.close(); input.dispose(); scroll.dispose(); super.dispose(); }
+  @override
+  Widget build(BuildContext context) => Scaffold(
+    appBar: AppBar(title: Text(widget.title), actions: [Padding(padding: const EdgeInsets.all(16), child: Icon(
+      Icons.circle, size: 10, color: connected ? Colors.green : Colors.orange))]),
+    body: Column(children: [
+      if (error != null) Padding(padding: const EdgeInsets.all(8), child: Text(error!)),
+      if (!connected) const LinearProgressIndicator(minHeight: 2),
+      Expanded(child: loading ? const Center(child: CircularProgressIndicator()) : ListView.builder(
+        controller: scroll, padding: const EdgeInsets.all(12), itemCount: messages.length,
+        itemBuilder: (context, index) {
+          final m = messages[index];
+          final mine = m['sender_id'] == widget.userId;
+          return Align(alignment: mine ? Alignment.centerLeft : Alignment.centerRight,
+            child: Container(margin: const EdgeInsets.symmetric(vertical: 4), padding: const EdgeInsets.all(12),
+              constraints: const BoxConstraints(maxWidth: 300),
+              decoration: BoxDecoration(color: mine ? Theme.of(context).colorScheme.primaryContainer : Theme.of(context).colorScheme.surfaceContainerHighest,
+                borderRadius: BorderRadius.circular(16)),
+              child: Text(m['content'] as String? ?? '')));
+        })),
+      SafeArea(child: Padding(padding: const EdgeInsets.all(8), child: Row(children: [
+        Expanded(child: TextField(controller: input, minLines: 1, maxLines: 4,
+          decoration: const InputDecoration(hintText: 'اكتب رسالة...', border: OutlineInputBorder()))),
+        const SizedBox(width: 8), IconButton.filled(onPressed: connected ? send : null, icon: const Icon(Icons.send)),
+      ]))),
     ]),
   );
 }
