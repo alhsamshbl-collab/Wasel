@@ -92,14 +92,19 @@ class _HomeScreenState extends State<HomeScreen> {
     setState(() { loading = true; error = null; });
     try {
       final results = await Future.wait([
-        http.get(Uri.parse('$base/api/conversations'), headers: headers()),
-        http.get(Uri.parse('$base/api/users'), headers: headers()),
+        http.get(Uri.parse('$base/api/conversations'), headers: headers()).timeout(const Duration(seconds: 8)),
+        http.get(Uri.parse('$base/api/users'), headers: headers()).timeout(const Duration(seconds: 8)),
       ]);
       if (results.any((r) => r.statusCode < 200 || r.statusCode >= 300)) throw Exception('تعذر تحميل بيانات الحساب');
       conversations = (jsonDecode(results[0].body) as List).cast<Map<String, dynamic>>();
       users = (jsonDecode(results[1].body) as List).cast<Map<String, dynamic>>();
+      await OfflineStore.saveConversations(conversations);
       userNames = {for (final u in users) '${u['id']}': u['display_name'] as String};
-    } catch (e) { error = e.toString().replaceFirst('Exception: ', ''); }
+    } catch (_) {
+      conversations = await OfflineStore.conversations();
+      users = [];
+      error = conversations.isEmpty ? 'لا توجد محادثات محفوظة على هذا الجهاز بعد' : null;
+    }
     if (mounted) setState(() { loading = false; });
   }
   Future<void> startConversation(Map<String, dynamic> other) async {
