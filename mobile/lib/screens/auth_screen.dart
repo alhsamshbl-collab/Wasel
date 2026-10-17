@@ -68,7 +68,7 @@ class _AuthScreenState extends State<AuthScreen> {
           FilledButton(onPressed: busy ? null : submit, child: Text(busy ? 'يرجى الانتظار' : register ? 'إنشاء الحساب' : 'تسجيل الدخول')),
           TextButton(onPressed: busy ? null : () => setState(() { register = !register; error = null; }),
             child: Text(register ? 'لديك حساب؟ تسجيل الدخول' : 'ليس لديك حساب؟ أنشئ حسابًا')),
-        ]))))));
+        ])))))));
 }
 
 class HomeScreen extends StatefulWidget {
