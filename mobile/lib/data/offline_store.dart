@@ -10,6 +10,8 @@ class OfflineStore {
     _db = await openDatabase('${dir.path}/wasel_local.db', version: 2,
       onUpgrade: (db, oldVersion, newVersion) async {
         await db.execute('CREATE TABLE IF NOT EXISTS conversations (id INTEGER PRIMARY KEY, kind TEXT, title TEXT)');
+        await db.execute('CREATE TABLE IF NOT EXISTS cached_media (id INTEGER PRIMARY KEY AUTOINCREMENT, message_id INTEGER, conversation_id INTEGER, local_path TEXT, mime_type TEXT, saved_at TEXT)');
+        await db.execute('CREATE INDEX IF NOT EXISTS idx_local_messages_time ON messages(conversation_id, created_at)');
       },
       onCreate: (db, version) async {
         await db.execute('CREATE TABLE messages (id INTEGER, conversation_id INTEGER, sender_id INTEGER, kind TEXT, content TEXT, created_at TEXT, cloud_purged INTEGER DEFAULT 0, PRIMARY KEY(conversation_id,id))');
