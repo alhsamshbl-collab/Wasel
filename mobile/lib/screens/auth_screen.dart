@@ -213,11 +213,13 @@ class _ChatScreenState extends State<ChatScreen> {
       scrollToEnd();
     } catch (e) {
       final localRows = await OfflineStore.messages(widget.conversationId);
-      if (mounted) setState(() {
-        messages.addAll(localRows);
+      if (mounted) {
+        setState(() {
+          messages.addAll(localRows);
         error = localRows.isEmpty ? 'لا يوجد سجل محفوظ على هذا الجهاز بعد' : 'وضع عدم الاتصال: تعرض الرسائل المحفوظة محليًا';
-        loading = false;
-      });
+          loading = false;
+        });
+      }
       scrollToEnd();
     }
   }
@@ -249,8 +251,10 @@ class _ChatScreenState extends State<ChatScreen> {
   }
   void scrollToEnd() {
     WidgetsBinding.instance.addPostFrameCallback((_) {
-      if (scroll.hasClients) scroll.animateTo(scroll.position.maxScrollExtent,
-        duration: const Duration(milliseconds: 180), curve: Curves.easeOut);
+      if (scroll.hasClients) {
+        scroll.animateTo(scroll.position.maxScrollExtent,
+          duration: const Duration(milliseconds: 180), curve: Curves.easeOut);
+      }
     });
   }
   void send() {
