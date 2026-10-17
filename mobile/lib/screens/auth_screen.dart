@@ -128,14 +128,35 @@ class _HomeScreenState extends State<HomeScreen> {
   @override
   Widget build(BuildContext context) => Scaffold(
     appBar: AppBar(title: const Text('واصل | Wasel'), actions: [IconButton(onPressed: load, icon: const Icon(Icons.refresh))]),
-    floatingActionButton: FloatingActionButton.extended(onPressed: () => showModalBottomSheet<void>(
-      context: context, showDragHandle: true, builder: (sheetContext) => SafeArea(child: SizedBox(height: 360,
-        child: users.isEmpty ? const Center(child: Text('لا يوجد مستخدمون آخرون بعد')) : ListView(
-          children: [const ListTile(title: Text('ابدأ محادثة جديدة')),...users.map((u) => ListTile(
-            leading: CircleAvatar(child: Text((u['display_name'] as String).substring(0, 1))),
-            title: Text(u['display_name'] as String), subtitle: Text('@${u['username']}'),
-            onTap: () { Navigator.pop(sheetContext); startConversation(u); }))]))),
-      icon: const Icon(Icons.add_comment_outlined), label: const Text('محادثة جديدة')),
+    floatingActionButton: FloatingActionButton.extended(
+      onPressed: () {
+        showModalBottomSheet<void>(
+          context: context,
+          showDragHandle: true,
+          builder: (sheetContext) => SafeArea(
+            child: SizedBox(
+              height: 360,
+              child: users.isEmpty
+                  ? const Center(child: Text('لا يوجد مستخدمون آخرون بعد'))
+                  : ListView(children: [
+                      const ListTile(title: Text('ابدأ محادثة جديدة')),
+                      ...users.map((u) => ListTile(
+                        leading: CircleAvatar(child: Text((u['display_name'] as String).substring(0, 1))),
+                        title: Text(u['display_name'] as String),
+                        subtitle: Text('@${u['username']}'),
+                        onTap: () {
+                          Navigator.pop(sheetContext);
+                          startConversation(u);
+                        },
+                      )),
+                    ]),
+            ),
+          ),
+        );
+      },
+      icon: const Icon(Icons.add_comment_outlined),
+      label: const Text('محادثة جديدة'),
+    ),
     body: loading ? const Center(child: CircularProgressIndicator()) : error != null
       ? Center(child: Column(mainAxisSize: MainAxisSize.min, children: [Text(error!), TextButton(onPressed: load, child: const Text('إعادة المحاولة'))]))
       : RefreshIndicator(onRefresh: load, child: ListView(padding: const EdgeInsets.all(12), children: [
