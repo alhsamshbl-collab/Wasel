@@ -18,9 +18,29 @@ class _AuthScreenState extends State<AuthScreen> {
   final password = TextEditingController();
   final inviteCode = TextEditingController();
   final storage = const FlutterSecureStorage();
-  bool register = false, busy = false;
+  bool register = false, busy = false, checkingSession = true;
   String? error;
   static const base = String.fromEnvironment('API_BASE_URL', defaultValue: 'http://10.0.2.2:8000');
+  @override
+  void initState() {
+    super.initState();
+    restoreSession();
+  }
+  Future<void> restoreSession() async {
+    try {
+      final token = await storage.read(key: 'wasel_access_token');
+      final userJson = await storage.read(key: 'wasel_user');
+      if (token != null && userJson != null) {
+        final user = jsonDecode(userJson) as Map<String, dynamic>;
+        if (!mounted) return;
+        Navigator.of(context).pushReplacement(MaterialPageRoute<void>(
+          builder: (_) => HomeScreen(user: user, token: token),
+        ));
+        return;
+      }
+    } catch (_) {}
+    if (mounted) setState(() => checkingSession = false);
+  }
   @override
   void dispose() { name.dispose(); username.dispose(); password.dispose(); inviteCode.dispose(); super.dispose(); }
   Future<void> submit() async {
@@ -33,16 +53,22 @@ class _AuthScreenState extends State<AuthScreen> {
           if (register) 'display_name': name.text.trim(), if (register) 'invite_code': inviteCode.text.trim()}));
       final body = jsonDecode(response.body) as Map<String, dynamic>;
       if (response.statusCode < 200 || response.statusCode >= 300) throw Exception(body['detail'] ?? 'تعذر تنفيذ الطلب');
-      await storage.write(key: 'wasel_access_token', value: body['access_token'] as String);
+      final user = body['user'] as Map<String, dynamic>;
+      final token = body['access_token'] as String;
+      await storage.write(key: 'wasel_access_token', value: token);
+      await storage.write(key: 'wasel_user', value: jsonEncode(user));
       if (!mounted) return;
-      Navigator.of(context).pushReplacement(MaterialPageRoute<void>(builder: (_) => HomeScreen(
-        user: body['user'] as Map<String, dynamic>, token: body['access_token'] as String)));
+      Navigator.of(context).pushReplacement(MaterialPageRoute<void>(
+        builder: (_) => HomeScreen(user: user, token: token),
+      ));
     } catch (e) {
       if (mounted) setState(() => error = e.toString().replaceFirst('Exception: ', ''));
     } finally { if (mounted) setState(() => busy = false); }
   }
   @override
-  Widget build(BuildContext context) => Scaffold(
+  Widget build(BuildContext context) {
+    if (checkingSession) return const Scaffold(body: Center(child: CircularProgressIndicator()));
+    return Scaffold(
     body: SafeArea(child: Center(child: SingleChildScrollView(padding: const EdgeInsets.all(24),
       child: ConstrainedBox(constraints: const BoxConstraints(maxWidth: 420), child: Form(key: form,
         child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
@@ -69,6 +95,7 @@ class _AuthScreenState extends State<AuthScreen> {
           TextButton(onPressed: busy ? null : () => setState(() { register = !register; error = null; }),
             child: Text(register ? 'لديك حساب؟ تسجيل الدخول' : 'ليس لديك حساب؟ أنشئ حسابًا')),
         ])))))));
+  }
 }
 
 class HomeScreen extends StatefulWidget {
