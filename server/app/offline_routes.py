@@ -30,17 +30,15 @@ async def acknowledge_saved_message(conversation_id: int, message_id: int,
         ConversationMember.conversation_id == conversation_id))
     receipt_count = await db.scalar(select(func.count()).select_from(MessageReceipt).where(
         MessageReceipt.message_id == message_id))
+    attachments = list((await db.scalars(select(MessageAttachment).where(
+        MessageAttachment.message_id == message_id))).all())
     purged = False
-    if member_count and receipt_count >= member_count:
-        # Keep a tombstone row for sync integrity, but remove the message text from the cloud.
+    waiting_for_media = bool(attachments)
+    if member_count and receipt_count >= member_count and not waiting_for_media:
+        # Keep a tombstone for sync integrity; never purge text before media is safely cached.
         message.content = None
         message.cloud_purged = True
-        attachments = list((await db.scalars(select(MessageAttachment).where(
-            MessageAttachment.message_id == message_id))).all())
-        # Actual object-store deletion is required before enabling media uploads.
-        for attachment in attachments:
-            await db.delete(attachment)
         purged = True
     await db.commit()
-    return {"saved": True, "cloud_purged": purged, "acknowledged_users": receipt_count,
-            "conversation_members": member_count or 0}
+    return {"saved": True, "cloud_purged": purged, "waiting_for_media": waiting_for_media,
+            "acknowledged_users": receipt_count, "conversation_members": member_count or 0}
