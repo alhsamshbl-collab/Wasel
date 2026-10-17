@@ -78,4 +78,4 @@ async def history(conversation_id: int, before_id: int | None = None, limit: int
     stmt = select(Message).where(Message.conversation_id == conversation_id)
     if before_id: stmt = stmt.where(Message.id < before_id)
     rows = list((await db.scalars(stmt.order_by(Message.id.desc()).limit(limit))).all()); rows.reverse()
-    return [{"id": m.id, "sender_id": m.sender_id, "kind": m.kind, "content": m.content, "reply_to_id": m.reply_to_id, "created_at": m.created_at} for m in rows]
+    return [{"id": m.id, "sender_id": m.sender_id, "kind": m.kind, "content": m.content, "reply_to_id": m.reply_to_id, "cloud_purged": m.cloud_purged, "created_at": m.created_at} for m in rows]
