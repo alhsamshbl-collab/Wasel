@@ -6,6 +6,7 @@ from app.conversation_routes import router as conversation_router
 from app.realtime import router as realtime_router
 from app.offline_routes import router as offline_router
 from app.media_routes import router as media_router
+from app.global_group import router as global_group_router
 
 app = FastAPI(title="واصل | Wasel API", description="واجهة API لتطبيق واصل", version="0.3.0")
 app.add_middleware(CORSMiddleware, allow_origins=settings.cors_origin_list, allow_credentials=True, allow_methods=["GET", "POST", "PATCH", "DELETE", "OPTIONS"], allow_headers=["Authorization", "Content-Type"])
@@ -13,6 +14,7 @@ app.include_router(router, prefix="/api")
 app.include_router(conversation_router, prefix="/api")
 app.include_router(offline_router, prefix="/api")
 app.include_router(media_router, prefix="/api")
+app.include_router(global_group_router, prefix="/api")
 app.include_router(realtime_router)
 
 @app.get("/health", tags=["health"])
