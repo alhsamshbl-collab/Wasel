@@ -1,5 +1,11 @@
 import 'dart:async';
 import 'dart:convert';
+import 'dart:io';
+import 'package:file_picker/file_picker.dart';
+import 'package:image_picker/image_picker.dart';
+import 'package:record/record.dart';
+import 'package:just_audio/just_audio.dart';
+import 'package:path_provider/path_provider.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:http/http.dart' as http;
@@ -216,6 +222,10 @@ class _ChatScreenState extends State<ChatScreen> {
   static const base = _AuthScreenState.base;
   final input = TextEditingController();
   final scroll = ScrollController();
+  final picker = ImagePicker();
+  final recorder = AudioRecorder();
+  final audioPlayer = AudioPlayer();
+  bool recording = false, sendingMedia = false;
   final messages = <Map<String, dynamic>>[];
   WebSocketChannel? channel;
   StreamSubscription<dynamic>? subscription;
@@ -293,8 +303,120 @@ class _ChatScreenState extends State<ChatScreen> {
     channel!.sink.add(jsonEncode({'content': text}));
     input.clear();
   }
+
+  Future<void> chooseMedia(String type) async {
+    if (sendingMedia) return;
+    try {
+      XFile? selected;
+      if (type == 'image') selected = await picker.pickImage(source: ImageSource.gallery, imageQuality: 88);
+      if (type == 'video') selected = await picker.pickVideo(source: ImageSource.gallery);
+      if (type == 'file') {
+        final result = await FilePicker.platform.pickFiles(withData: false);
+        final path = result?.files.single.path;
+        if (path != null) await uploadMedia(File(path), result!.files.single.name);
+        return;
+      }
+      if (selected != null) await uploadMedia(File(selected.path), selected.name);
+    } catch (e) {
+      if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('تعذر اختيار الملف: $e')));
+    }
+  }
+
+  Future<void> toggleRecording() async {
+    try {
+      if (recording) {
+        final path = await recorder.stop();
+        if (mounted) setState(() => recording = false);
+        if (path != null) await uploadMedia(File(path), 'voice_${DateTime.now().millisecondsSinceEpoch}.m4a', forcedMime: 'audio/mp4');
+      } else {
+        if (!await recorder.hasPermission()) {
+          if (mounted) ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('يرجى السماح باستخدام الميكروفون')));
+          return;
+        }
+        final dir = await getTemporaryDirectory();
+        final path = '${dir.path}/wasel_voice_${DateTime.now().millisecondsSinceEpoch}.m4a';
+        await recorder.start(const RecordConfig(encoder: AudioEncoder.aacLc), path: path);
+        if (mounted) setState(() => recording = true);
+      }
+    } catch (e) {
+      if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('تعذر تسجيل الصوت: $e')));
+    }
+  }
+
+  Future<void> uploadMedia(File file, String name, {String? forcedMime}) async {
+    if (sendingMedia) return;
+    setState(() => sendingMedia = true);
+    try {
+      final request = http.MultipartRequest('POST', Uri.parse('$base/api/conversations/${widget.conversationId}/media'));
+      request.headers['Authorization'] = 'Bearer ${widget.token}';
+      request.files.add(await http.MultipartFile.fromPath('file', file.path, filename: name,
+        contentType: forcedMime == null ? null : http.MediaType.parse(forcedMime)));
+      final streamed = await request.send().timeout(const Duration(minutes: 2));
+      final response = await http.Response.fromStream(streamed);
+      if (response.statusCode < 200 || response.statusCode >= 300) {
+        final detail = jsonDecode(response.body);
+        throw Exception(detail is Map ? detail['detail'] ?? 'فشل الإرسال' : 'فشل الإرسال');
+      }
+      final data = jsonDecode(response.body) as Map<String, dynamic>;
+      if (mounted && !messages.any((m) => m['id'] == data['id'])) {
+        setState(() => messages.add(data));
+        await OfflineStore.saveMessages(widget.conversationId, [data]);
+        scrollToEnd();
+      }
+    } catch (e) {
+      if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(e.toString().replaceFirst('Exception: ', ''))));
+    } finally {
+      if (mounted) setState(() => sendingMedia = false);
+    }
+  }
+
+  Future<void> openAttachment(Map<String, dynamic> message) async {
+    try {
+      final content = jsonDecode(message['content'] as String) as Map<String, dynamic>;
+      final response = await http.get(Uri.parse('$base${content['download_path']}'),
+        headers: {'Authorization': 'Bearer ${widget.token}'}).timeout(const Duration(minutes: 2));
+      if (response.statusCode != 200) throw Exception('تعذر تنزيل المرفق');
+      final localPath = await OfflineStore.saveMediaBytes(conversationId: widget.conversationId,
+        messageId: (message['id'] as num).toInt(), bytes: response.bodyBytes,
+        fileName: content['name'] as String? ?? 'attachment.bin', mimeType: content['content_type'] as String?);
+      final mime = (content['content_type'] as String? ?? '');
+      if (mime.startsWith('audio/')) {
+        await audioPlayer.setFilePath(localPath);
+        await audioPlayer.play();
+      } else if (mime.startsWith('image/')) {
+        if (mounted) showDialog<void>(context: context, builder: (ctx) => Dialog(child: InteractiveViewer(child: Image.file(File(localPath)))));
+      } else if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('تم تنزيل الملف إلى: $localPath')));
+      }
+    } catch (e) {
+      if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(e.toString().replaceFirst('Exception: ', ''))));
+    }
+  }
+
+  Widget messageBody(Map<String, dynamic> m) {
+    final kind = m['kind'] as String? ?? 'text';
+    final content = m['content'] as String? ?? '';
+    if (kind == 'text') return Text(content);
+    try {
+      final meta = jsonDecode(content) as Map<String, dynamic>;
+      final mime = meta['content_type'] as String? ?? '';
+      final name = meta['name'] as String? ?? 'مرفق';
+      if (mime.startsWith('image/')) {
+        return Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+          const Icon(Icons.image_outlined, size: 32), Text(name),
+          TextButton.icon(onPressed: () => openAttachment(m), icon: const Icon(Icons.open_in_new), label: const Text('عرض الصورة')),
+        ]);
+      }
+      final icon = mime.startsWith('video/') ? Icons.video_file_outlined :
+        mime.startsWith('audio/') ? Icons.audio_file_outlined : Icons.attach_file;
+      return Row(mainAxisSize: MainAxisSize.min, children: [
+        Icon(icon), const SizedBox(width: 8), Flexible(child: Text(name)),
+        IconButton(onPressed: () => openAttachment(m), icon: Icon(mime.startsWith('audio/') ? Icons.play_arrow : Icons.download)),
+      ]);
+    } catch (_) { return Text(content.isEmpty ? 'مرفق' : content); }
+  }
   @override
-  void dispose() { subscription?.cancel(); channel?.sink.close(); input.dispose(); scroll.dispose(); super.dispose(); }
+  void dispose() { subscription?.cancel(); channel?.sink.close(); input.dispose(); scroll.dispose(); recorder.dispose(); audioPlayer.dispose(); super.dispose(); }
   @override
   Widget build(BuildContext context) => Scaffold(
     appBar: AppBar(title: Text(widget.title), actions: [Padding(padding: const EdgeInsets.all(16), child: Icon(
@@ -312,12 +434,21 @@ class _ChatScreenState extends State<ChatScreen> {
               constraints: const BoxConstraints(maxWidth: 300),
               decoration: BoxDecoration(color: mine ? Theme.of(context).colorScheme.primaryContainer : Theme.of(context).colorScheme.surfaceContainerHighest,
                 borderRadius: BorderRadius.circular(16)),
-              child: Text(m['content'] as String? ?? '')));
+              child: messageBody(m)));
         })),
-      SafeArea(child: Padding(padding: const EdgeInsets.all(8), child: Row(children: [
-        Expanded(child: TextField(controller: input, minLines: 1, maxLines: 4,
-          decoration: const InputDecoration(hintText: 'اكتب رسالة...', border: OutlineInputBorder()))),
-        const SizedBox(width: 8), IconButton.filled(onPressed: connected ? send : null, icon: const Icon(Icons.send)),
+      if (sendingMedia) const LinearProgressIndicator(minHeight: 2),
+      SafeArea(child: Padding(padding: const EdgeInsets.all(8), child: Column(mainAxisSize: MainAxisSize.min, children: [
+        Row(children: [
+          IconButton(onPressed: sendingMedia ? null : () => chooseMedia('image'), tooltip: 'إرسال صورة', icon: const Icon(Icons.image_outlined)),
+          IconButton(onPressed: sendingMedia ? null : () => chooseMedia('video'), tooltip: 'إرسال فيديو', icon: const Icon(Icons.video_library_outlined)),
+          IconButton(onPressed: sendingMedia ? null : () => chooseMedia('file'), tooltip: 'إرسال مرفق', icon: const Icon(Icons.attach_file)),
+          IconButton(onPressed: sendingMedia ? null : toggleRecording, tooltip: recording ? 'إيقاف وإرسال التسجيل' : 'تسجيل صوت', color: recording ? Colors.red : null,
+            icon: Icon(recording ? Icons.stop_circle_outlined : Icons.mic_none)),
+          Expanded(child: TextField(controller: input, minLines: 1, maxLines: 4,
+            decoration: const InputDecoration(hintText: 'اكتب رسالة...', border: OutlineInputBorder()))),
+          const SizedBox(width: 4), IconButton.filled(onPressed: connected ? send : null, icon: const Icon(Icons.send)),
+        ]),
+        if (recording) const Align(alignment: Alignment.centerRight, child: Text('جارٍ تسجيل الرسالة الصوتية…')),
       ]))),
     ]),
   );
