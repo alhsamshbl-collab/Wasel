@@ -3,7 +3,7 @@ from collections import defaultdict
 from fastapi import APIRouter, WebSocket, WebSocketDisconnect, HTTPException
 from sqlalchemy import select
 from app.database.session import SessionLocal
-from app.models import ConversationMember, Message
+from app.models import ConversationMember, Message, Conversation, UserBlock
 from app.security import decode_access_token
 
 router = APIRouter()
@@ -55,6 +55,18 @@ async def conversation_socket(websocket: WebSocket, conversation_id: int, token:
                 if not member:
                     await websocket.close(code=4403, reason="Membership removed")
                     return
+                conversation = await db.get(Conversation, conversation_id)
+                if conversation is not None and conversation.kind == "private":
+                    peer_ids = list((await db.scalars(select(ConversationMember.user_id).where(
+                        ConversationMember.conversation_id == conversation_id,
+                        ConversationMember.user_id != user_id))).all())
+                    if peer_ids:
+                        blocked = await db.scalar(select(UserBlock.id).where(
+                            ((UserBlock.blocker_id == user_id) & (UserBlock.blocked_id.in_(peer_ids))) |
+                            ((UserBlock.blocker_id.in_(peer_ids)) & (UserBlock.blocked_id == user_id))))
+                        if blocked:
+                            await websocket.send_json({"type": "error", "detail": "تعذر الإرسال بسبب الحظر"})
+                            continue
                 message = Message(conversation_id=conversation_id, sender_id=user_id, kind="text", content=content)
                 db.add(message)
                 await db.commit()
