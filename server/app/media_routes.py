@@ -45,6 +45,55 @@ async def upload_attachment(conversation_id: int, message_id: int, file: UploadF
         "content_type": attachment.content_type, "size_bytes": attachment.size_bytes,
         "download_path": f"/api/attachments/{attachment.id}"}
 
+
+@router.post("/conversations/{conversation_id}/media", status_code=201)
+async def send_media(conversation_id: int, file: UploadFile = File(...),
+    user: User = Depends(current_user), db: AsyncSession = Depends(get_db)):
+    """Create a media message and store its attachment for any member of this conversation."""
+    member = await db.scalar(select(ConversationMember.id).where(
+        ConversationMember.conversation_id == conversation_id, ConversationMember.user_id == user.id))
+    if not member:
+        raise HTTPException(403, "لست عضوًا في هذه المحادثة")
+    mime = (file.content_type or "application/octet-stream").lower()
+    payload = await file.read(settings.max_upload_bytes + 1)
+    if not payload or len(payload) > settings.max_upload_bytes:
+        raise HTTPException(413, "الملف فارغ أو أكبر من الحد المسموح")
+    if mime.startswith("image/"):
+        kind = "image"
+    elif mime.startswith("video/"):
+        kind = "video"
+    elif mime.startswith("audio/"):
+        kind = "audio"
+    else:
+        kind = "file"
+    original_name = Path(file.filename or "attachment.bin").name[:255]
+    root = Path(settings.upload_dir).resolve()
+    root.mkdir(parents=True, exist_ok=True)
+    key = f"{uuid4().hex}_{Path(original_name).name[:100]}"
+    target = (root / key).resolve()
+    if target.parent != root:
+        raise HTTPException(400, "اسم ملف غير صالح")
+    target.write_bytes(payload)
+    message = Message(conversation_id=conversation_id, sender_id=user.id, kind=kind, content=None)
+    db.add(message)
+    await db.flush()
+    attachment = MessageAttachment(message_id=message.id, object_key=key, content_type=mime,
+        size_bytes=len(payload), original_name=original_name)
+    db.add(attachment)
+    await db.flush()
+    message.content = __import__("json").dumps({
+        "attachment_id": attachment.id, "name": original_name, "content_type": mime,
+        "size_bytes": len(payload), "download_path": f"/api/attachments/{attachment.id}"
+    }, ensure_ascii=False)
+    await db.commit()
+    await db.refresh(message)
+    payload_out = {"type": "message", "id": message.id, "conversation_id": conversation_id,
+        "sender_id": user.id, "kind": kind, "content": message.content,
+        "created_at": message.created_at.isoformat()}
+    from app.realtime import broadcast
+    await broadcast(conversation_id, payload_out)
+    return payload_out
+
 @router.get("/attachments/{attachment_id}")
 async def download_attachment(attachment_id: int, user: User = Depends(current_user), db: AsyncSession = Depends(get_db)):
     attachment = await db.get(MessageAttachment, attachment_id)
