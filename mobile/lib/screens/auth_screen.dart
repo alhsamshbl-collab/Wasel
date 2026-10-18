@@ -23,6 +23,7 @@ class _AuthScreenState extends State<AuthScreen> {
   final username = TextEditingController();
   final password = TextEditingController();
   final inviteCode = TextEditingController();
+  final confirmPassword = TextEditingController();
   final storage = const FlutterSecureStorage();
   bool register = false, busy = false, checkingSession = true;
   String? error;
@@ -48,7 +49,7 @@ class _AuthScreenState extends State<AuthScreen> {
     if (mounted) setState(() => checkingSession = false);
   }
   @override
-  void dispose() { name.dispose(); username.dispose(); password.dispose(); inviteCode.dispose(); super.dispose(); }
+  void dispose() { name.dispose(); username.dispose(); password.dispose(); inviteCode.dispose(); confirmPassword.dispose(); super.dispose(); }
   Future<void> submit() async {
     if (!form.currentState!.validate()) return;
     setState(() { busy = true; error = null; });
@@ -257,6 +258,41 @@ class _AuthScreenState extends State<AuthScreen> {
                                 ),
                               ),
                               const SizedBox(height: 13),
+                              SizedBox(
+                                height: 60,
+                                child: TextFormField(
+                                  controller: password,
+                                  style: const TextStyle(color: Colors.white, fontSize: 16),
+                                  cursorColor: cyan,
+                                  showCursor: true,
+                                  readOnly: false,
+                                  keyboardType: TextInputType.visiblePassword,
+                                  obscureText: true,
+                                  enableSuggestions: false,
+                                  autocorrect: false,
+                                  textInputAction: TextInputAction.next,
+                                  decoration: fieldDecoration('كلمة المرور', Icons.lock_outline_rounded),
+                                  validator: (v) => v == null || v.length < 8 ? 'كلمة المرور يجب أن تكون 8 أحرف على الأقل' : null,
+                                ),
+                              ),
+                              const SizedBox(height: 13),
+                              SizedBox(
+                                height: 60,
+                                child: TextFormField(
+                                  controller: confirmPassword,
+                                  style: const TextStyle(color: Colors.white, fontSize: 16),
+                                  cursorColor: cyan,
+                                  showCursor: true,
+                                  readOnly: false,
+                                  keyboardType: TextInputType.visiblePassword,
+                                  obscureText: true,
+                                  enableSuggestions: false,
+                                  autocorrect: false,
+                                  textInputAction: TextInputAction.done,
+                                  decoration: fieldDecoration('تأكيد كلمة المرور', Icons.lock_person_outlined),
+                                  validator: (v) => v != password.text ? 'كلمتا المرور غير متطابقتين' : null,
+                                ),
+                              ),
                             ],
                             SizedBox(
                               height: 60,
@@ -277,25 +313,27 @@ class _AuthScreenState extends State<AuthScreen> {
                               ),
                             ),
                             const SizedBox(height: 13),
-                            SizedBox(
-                              height: 60,
-                              child: TextFormField(
-                              controller: password,
-                              style: const TextStyle(color: Colors.white, fontSize: 16),
-                              cursorColor: cyan,
-                              showCursor: true,
-                              readOnly: false,
-                              enabled: true,
-                              keyboardType: TextInputType.visiblePassword,
-                              obscureText: true,
-                              enableSuggestions: false,
-                              autocorrect: false,
-                              decoration: fieldDecoration('كلمة المرور', Icons.lock_outline_rounded),
-                              textInputAction: TextInputAction.done,
-                              onFieldSubmitted: (_) => busy ? null : submit(),
-                              validator: (v) => v == null || v.length < 8 ? 'كلمة المرور يجب أن تكون 8 أحرف على الأقل' : null,
+                            if (!register) ...[
+                              SizedBox(
+                                height: 60,
+                                child: TextFormField(
+                                  controller: password,
+                                  style: const TextStyle(color: Colors.white, fontSize: 16),
+                                  cursorColor: cyan,
+                                  showCursor: true,
+                                  readOnly: false,
+                                  enabled: true,
+                                  keyboardType: TextInputType.visiblePassword,
+                                  obscureText: true,
+                                  enableSuggestions: false,
+                                  autocorrect: false,
+                                  decoration: fieldDecoration('كلمة المرور', Icons.lock_outline_rounded),
+                                  textInputAction: TextInputAction.done,
+                                  onFieldSubmitted: (_) => busy ? null : submit(),
+                                  validator: (v) => v == null || v.length < 8 ? 'كلمة المرور يجب أن تكون 8 أحرف على الأقل' : null,
+                                ),
                               ),
-                            ),
+                            ],
                             if (error != null) ...[
                               const SizedBox(height: 12),
                               Text(error!, style: const TextStyle(color: Color(0xFFFF8790), fontSize: 13)),
