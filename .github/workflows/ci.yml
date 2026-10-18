@@ -40,6 +40,26 @@ jobs:
       - name: Generate Android platform files if missing
         working-directory: mobile
         run: flutter create --no-pub --platforms=android --project-name wasel .
+      - name: Set Android compile SDK for current plugins
+        working-directory: mobile
+        shell: bash
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          candidates = [Path("android/app/build.gradle"), Path("android/app/build.gradle.kts")]
+          found = False
+          for path in candidates:
+              if not path.exists():
+                  continue
+              text = path.read_text()
+              updated = text.replace("compileSdk = flutter.compileSdkVersion", "compileSdk = 36")
+              updated = updated.replace("compileSdk flutter.compileSdkVersion", "compileSdk 36")
+              if updated != text:
+                  path.write_text(updated)
+                  found = True
+          if not found:
+              raise SystemExit("Could not find generated Android compileSdk setting")
+          PY
       - name: Resolve dependencies
         working-directory: mobile
         run: flutter pub get
