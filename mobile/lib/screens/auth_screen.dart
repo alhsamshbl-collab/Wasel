@@ -77,7 +77,7 @@ class _AuthScreenState extends State<AuthScreen> {
     setState(() { busy = true; error = null; });
     try {
       final response = await http.post(
-        Uri.parse(base + '/api/auth/' + (register ? 'register' : 'login')),
+        Uri.parse('$base/api/auth/${register ? 'register' : 'login'}'),
         headers: {'Content-Type': 'application/json'},
         body: jsonEncode({
           'username': username.text.trim(),
