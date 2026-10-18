@@ -28,8 +28,8 @@ class _AuthScreenState extends State<AuthScreen> {
   }
   Future<void> restoreSession() async {
     try {
-      final token = await storage.read(key: 'wasel_access_token');
-      final userJson = await storage.read(key: 'wasel_user');
+      final token = await storage.read(key: 'wasel_access_token').timeout(const Duration(seconds: 4));
+      final userJson = await storage.read(key: 'wasel_user').timeout(const Duration(seconds: 4));
       if (token != null && userJson != null) {
         final user = jsonDecode(userJson) as Map<String, dynamic>;
         if (!mounted) return;
@@ -121,10 +121,13 @@ class _HomeScreenState extends State<HomeScreen> {
       final results = await Future.wait([
         http.get(Uri.parse('$base/api/conversations'), headers: headers()).timeout(const Duration(seconds: 8)),
         http.get(Uri.parse('$base/api/users'), headers: headers()).timeout(const Duration(seconds: 8)),
+        http.get(Uri.parse('$base/api/global-group'), headers: headers()).timeout(const Duration(seconds: 8)),
       ]);
       if (results.any((r) => r.statusCode < 200 || r.statusCode >= 300)) throw Exception('تعذر تحميل بيانات الحساب');
       conversations = (jsonDecode(results[0].body) as List).cast<Map<String, dynamic>>();
       users = (jsonDecode(results[1].body) as List).cast<Map<String, dynamic>>();
+      final globalGroup = jsonDecode(results[2].body) as Map<String, dynamic>;
+      if (!conversations.any((c) => c['id'] == globalGroup['id'])) conversations.insert(0, globalGroup);
       await OfflineStore.saveConversations(conversations);
       userNames = {for (final u in users) '${u['id']}': u['display_name'] as String};
     } catch (_) {
