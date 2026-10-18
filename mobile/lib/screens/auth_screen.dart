@@ -222,34 +222,45 @@ class _AuthScreenState extends State<AuthScreen> {
                             ),
                             const SizedBox(height: 24),
                             if (register) ...[
-                              TextFormField(
+                              SizedBox(
+                                height: 60,
+                                child: TextFormField(
                                 controller: name,
                                 style: const TextStyle(color: Colors.white),
                                 decoration: fieldDecoration('الاسم الظاهر', Icons.badge_outlined),
                                 textInputAction: TextInputAction.next,
                                 validator: (v) => v == null || v.trim().isEmpty ? 'أدخل الاسم الظاهر' : null,
+                                ),
                               ),
                               const SizedBox(height: 13),
-                              TextFormField(
+                              SizedBox(
+                                height: 60,
+                                child: TextFormField(
                                 controller: inviteCode,
                                 style: const TextStyle(color: Colors.white),
                                 obscureText: true,
                                 decoration: fieldDecoration('رمز الدعوة الخاص', Icons.vpn_key_outlined),
                                 textInputAction: TextInputAction.next,
                                 validator: (v) => v == null || v.trim().length < 8 ? 'أدخل رمز الدعوة الصحيح' : null,
+                                ),
                               ),
                               const SizedBox(height: 13),
                             ],
-                            TextFormField(
+                            SizedBox(
+                              height: 60,
+                              child: TextFormField(
                               controller: username,
                               style: const TextStyle(color: Colors.white),
                               decoration: fieldDecoration('اسم المستخدم', Icons.person_outline_rounded),
                               textInputAction: TextInputAction.next,
                               autocorrect: false,
                               validator: (v) => v == null || v.trim().length < 3 ? 'أدخل اسم مستخدم صحيحًا' : null,
+                              ),
                             ),
                             const SizedBox(height: 13),
-                            TextFormField(
+                            SizedBox(
+                              height: 60,
+                              child: TextFormField(
                               controller: password,
                               style: const TextStyle(color: Colors.white),
                               obscureText: true,
@@ -257,6 +268,7 @@ class _AuthScreenState extends State<AuthScreen> {
                               textInputAction: TextInputAction.done,
                               onFieldSubmitted: (_) => busy ? null : submit(),
                               validator: (v) => v == null || v.length < 8 ? 'كلمة المرور يجب أن تكون 8 أحرف على الأقل' : null,
+                              ),
                             ),
                             if (error != null) ...[
                               const SizedBox(height: 12),
