@@ -70,6 +70,34 @@ jobs:
           """)
           print("Installed custom Wasel chat-bubble launcher icon")
           PY
+      - name: Stabilize Android text input and rendering
+        working-directory: mobile
+        shell: bash
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          import re
+          manifest = Path("android/app/src/main/AndroidManifest.xml")
+          source = manifest.read_text()
+          source, count = re.subn(
+              r'<activity\\b([^>]*android:name="[^"]*MainActivity"[^>]*)>',
+              lambda m: '<activity' + re.sub(
+                  r'\\sandroid:windowSoftInputMode="[^"]*"',
+                  '',
+                  m.group(1)
+              ) + ' android:windowSoftInputMode="adjustResize">',
+              source,
+              count=1,
+              flags=re.S,
+          )
+          if count == 0:
+              raise SystemExit("Could not find MainActivity in Android manifest")
+          meta = '<meta-data android:name="io.flutter.embedding.android.EnableImpeller" android:value="false" />'
+          if 'io.flutter.embedding.android.EnableImpeller' not in source:
+              source = source.replace('</application>', '        ' + meta + '\\n    </application>')
+          manifest.write_text(source)
+          print("Disabled Impeller for device compatibility and set adjustResize for keyboard")
+          PY
       - name: Set Android compile SDK for current plugins
         working-directory: mobile
         shell: bash
