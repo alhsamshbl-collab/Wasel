@@ -73,34 +73,131 @@ class _AuthScreenState extends State<AuthScreen> {
   }
   @override
   Widget build(BuildContext context) {
-    if (checkingSession) return const Scaffold(body: Center(child: CircularProgressIndicator()));
+    if (checkingSession) {
+      return const Scaffold(
+        body: Center(child: CircularProgressIndicator()),
+      );
+    }
+
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final fieldFill = isDark ? const Color(0xFF172326) : Colors.white;
+    final fieldText = isDark ? Colors.white : const Color(0xFF172326);
+    final fieldLabel = isDark ? const Color(0xFFD2DEE0) : const Color(0xFF526368);
+
+    InputDecoration decoration(String label) => InputDecoration(
+      labelText: label,
+      labelStyle: TextStyle(color: fieldLabel),
+      filled: true,
+      fillColor: fieldFill,
+      contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
+      border: OutlineInputBorder(
+        borderRadius: BorderRadius.circular(14),
+        borderSide: BorderSide(color: isDark ? const Color(0xFF344448) : const Color(0xFFD7E1E3)),
+      ),
+      enabledBorder: OutlineInputBorder(
+        borderRadius: BorderRadius.circular(14),
+        borderSide: BorderSide(color: isDark ? const Color(0xFF344448) : const Color(0xFFD7E1E3)),
+      ),
+      focusedBorder: OutlineInputBorder(
+        borderRadius: BorderRadius.circular(14),
+        borderSide: const BorderSide(color: Color(0xFF25B8C2), width: 1.8),
+      ),
+    );
+
     return Scaffold(
-    body: SafeArea(child: Center(child: SingleChildScrollView(padding: const EdgeInsets.all(24),
-      child: ConstrainedBox(constraints: const BoxConstraints(maxWidth: 420), child: Form(key: form,
-        child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
-          Icon(Icons.forum_rounded, size: 60, color: Theme.of(context).colorScheme.primary),
-          const SizedBox(height: 16),
-          Text(register ? 'إنشاء حساب في واصل' : 'مرحبًا بعودتك', textAlign: TextAlign.center, style: Theme.of(context).textTheme.headlineSmall),
-          const SizedBox(height: 8), const Text('تواصل بلا حدود', textAlign: TextAlign.center), const SizedBox(height: 24),
-          if (register) ...[
-            TextFormField(controller: name, decoration: const InputDecoration(labelText: 'الاسم الظاهر', border: OutlineInputBorder()),
-              validator: (v) => v == null || v.trim().isEmpty ? 'أدخل الاسم الظاهر' : null),
-            const SizedBox(height: 12),
-            TextFormField(controller: inviteCode, obscureText: true, decoration: const InputDecoration(labelText: 'رمز الدعوة الخاص', border: OutlineInputBorder()),
-              validator: (v) => v == null || v.trim().length < 8 ? 'أدخل رمز الدعوة' : null),
-            const SizedBox(height: 12),
-          ],
-          TextFormField(controller: username, decoration: const InputDecoration(labelText: 'اسم المستخدم', border: OutlineInputBorder()),
-            validator: (v) => v == null || v.trim().length < 3 ? 'أدخل اسم مستخدم صحيحًا' : null),
-          const SizedBox(height: 12),
-          TextFormField(controller: password, obscureText: true, decoration: const InputDecoration(labelText: 'كلمة المرور (8 أحرف على الأقل)', border: OutlineInputBorder()),
-            validator: (v) => v == null || v.length < 8 ? 'كلمة المرور قصيرة' : null),
-          if (error != null) Padding(padding: const EdgeInsets.only(top: 12), child: Text(error!, style: TextStyle(color: Theme.of(context).colorScheme.error))),
-          const SizedBox(height: 20),
-          FilledButton(onPressed: busy ? null : submit, child: Text(busy ? 'يرجى الانتظار' : register ? 'إنشاء الحساب' : 'تسجيل الدخول')),
-          TextButton(onPressed: busy ? null : () => setState(() { register = !register; error = null; }),
-            child: Text(register ? 'لديك حساب؟ تسجيل الدخول' : 'ليس لديك حساب؟ أنشئ حسابًا')),
-        ])))))));
+      backgroundColor: Theme.of(context).scaffoldBackgroundColor,
+      body: SafeArea(
+        child: LayoutBuilder(
+          builder: (context, constraints) => SingleChildScrollView(
+            padding: const EdgeInsets.fromLTRB(24, 28, 24, 28),
+            child: ConstrainedBox(
+              constraints: BoxConstraints(minHeight: constraints.maxHeight - 56),
+              child: Center(
+                child: ConstrainedBox(
+                  constraints: const BoxConstraints(maxWidth: 420),
+                  child: Form(
+                    key: form,
+                    child: Column(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      crossAxisAlignment: CrossAxisAlignment.stretch,
+                      children: [
+                        const Icon(Icons.forum_rounded, size: 58, color: Color(0xFF25B8C2)),
+                        const SizedBox(height: 14),
+                        Text(
+                          register ? 'إنشاء حساب في واصل' : 'مرحبًا بعودتك',
+                          textAlign: TextAlign.center,
+                          style: Theme.of(context).textTheme.headlineSmall?.copyWith(fontWeight: FontWeight.w700),
+                        ),
+                        const SizedBox(height: 8),
+                        Text('تواصل بلا حدود', textAlign: TextAlign.center,
+                          style: Theme.of(context).textTheme.bodyLarge),
+                        const SizedBox(height: 28),
+                        if (register) ...[
+                          TextFormField(
+                            controller: name,
+                            style: TextStyle(color: fieldText),
+                            decoration: decoration('الاسم الظاهر'),
+                            textInputAction: TextInputAction.next,
+                            validator: (v) => v == null || v.trim().isEmpty ? 'أدخل الاسم الظاهر' : null,
+                          ),
+                          const SizedBox(height: 14),
+                          TextFormField(
+                            controller: inviteCode,
+                            style: TextStyle(color: fieldText),
+                            obscureText: true,
+                            decoration: decoration('رمز الدعوة الخاص'),
+                            textInputAction: TextInputAction.next,
+                            validator: (v) => v == null || v.trim().length < 8 ? 'أدخل رمز الدعوة' : null,
+                          ),
+                          const SizedBox(height: 14),
+                        ],
+                        TextFormField(
+                          controller: username,
+                          style: TextStyle(color: fieldText),
+                          decoration: decoration('اسم المستخدم'),
+                          textInputAction: TextInputAction.next,
+                          autocorrect: false,
+                          validator: (v) => v == null || v.trim().length < 3 ? 'أدخل اسم مستخدم صحيحًا' : null,
+                        ),
+                        const SizedBox(height: 14),
+                        TextFormField(
+                          controller: password,
+                          style: TextStyle(color: fieldText),
+                          obscureText: true,
+                          decoration: decoration('كلمة المرور (8 أحرف على الأقل)'),
+                          textInputAction: TextInputAction.done,
+                          onFieldSubmitted: (_) => busy ? null : submit(),
+                          validator: (v) => v == null || v.length < 8 ? 'كلمة المرور قصيرة' : null,
+                        ),
+                        if (error != null) Padding(
+                          padding: const EdgeInsets.only(top: 12),
+                          child: Text(error!, style: TextStyle(color: Theme.of(context).colorScheme.error)),
+                        ),
+                        const SizedBox(height: 20),
+                        SizedBox(
+                          height: 52,
+                          child: FilledButton(
+                            onPressed: busy ? null : submit,
+                            child: busy
+                              ? const SizedBox(width: 22, height: 22, child: CircularProgressIndicator(strokeWidth: 2))
+                              : Text(register ? 'إنشاء الحساب' : 'تسجيل الدخول'),
+                          ),
+                        ),
+                        const SizedBox(height: 8),
+                        TextButton(
+                          onPressed: busy ? null : () => setState(() { register = !register; error = null; }),
+                          child: Text(register ? 'لديك حساب؟ تسجيل الدخول' : 'ليس لديك حساب؟ أنشئ حسابًا'),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
   }
 }
 
