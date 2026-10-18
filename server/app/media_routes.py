@@ -7,7 +7,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.core.config import settings
 from app.database.session import get_db
 from app.dependencies import current_user
-from app.models import User, ConversationMember, Message, MessageAttachment
+from app.models import User, ConversationMember, Message, MessageAttachment, Conversation, UserBlock
 
 router = APIRouter()
 ALLOWED_PREFIXES = ("image/", "video/", "audio/")
@@ -54,6 +54,16 @@ async def send_media(conversation_id: int, file: UploadFile = File(...),
         ConversationMember.conversation_id == conversation_id, ConversationMember.user_id == user.id))
     if not member:
         raise HTTPException(403, "لست عضوًا في هذه المحادثة")
+    conversation = await db.get(Conversation, conversation_id)
+    if conversation is not None and conversation.kind == "private":
+        peer_ids = list((await db.scalars(select(ConversationMember.user_id).where(
+            ConversationMember.conversation_id == conversation_id, ConversationMember.user_id != user.id))).all())
+        if peer_ids:
+            blocked = await db.scalar(select(UserBlock.id).where(
+                ((UserBlock.blocker_id == user.id) & (UserBlock.blocked_id.in_(peer_ids))) |
+                ((UserBlock.blocker_id.in_(peer_ids)) & (UserBlock.blocked_id == user.id))))
+            if blocked:
+                raise HTTPException(403, "تعذر إرسال المرفق بسبب الحظر")
     mime = (file.content_type or "application/octet-stream").lower()
     payload = await file.read(settings.max_upload_bytes + 1)
     if not payload or len(payload) > settings.max_upload_bytes:
