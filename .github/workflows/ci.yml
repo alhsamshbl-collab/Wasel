@@ -69,6 +69,38 @@ jobs:
       - name: Resolve dependencies
         working-directory: mobile
         run: flutter pub get
+      - name: Normalize Android SDK for app and plugins
+        working-directory: mobile
+        shell: bash
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          import re
+          roots = [Path("android"), Path.home() / ".pub-cache" / "hosted" / "pub.dev"]
+          changed = 0
+          for root in roots:
+              if not root.exists():
+                  continue
+              for path in root.rglob("*"):
+                  if path.name not in ("build.gradle", "build.gradle.kts"):
+                      continue
+                  try:
+                      source = path.read_text()
+                  except (UnicodeDecodeError, OSError):
+                      continue
+                  updated, count = re.subn(
+                      r"(?m)^(\s*compileSdk(?:Version)?\s*(?:=\s*)?)(?:flutter\.compileSdkVersion|[0-9]+)",
+                      r"\g<1>36",
+                      source,
+                  )
+                  if count and updated != source:
+                      path.write_text(updated)
+                      changed += 1
+                      print(f"Set compileSdk=36: {path}")
+          if changed == 0:
+              raise SystemExit("No Android Gradle compileSdk settings found to normalize")
+          print(f"Updated {changed} Gradle file(s)")
+          PY
       - name: Remove generated placeholder test
         working-directory: mobile
         run: rm -f test/widget_test.dart
