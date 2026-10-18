@@ -17,6 +17,7 @@ class AuthScreen extends StatefulWidget {
   @override
   State<AuthScreen> createState() => _AuthScreenState();
 }
+
 class _AuthScreenState extends State<AuthScreen> {
   final form = GlobalKey<FormState>();
   final name = TextEditingController();
@@ -25,14 +26,25 @@ class _AuthScreenState extends State<AuthScreen> {
   final inviteCode = TextEditingController();
   final confirmPassword = TextEditingController();
   final storage = const FlutterSecureStorage();
+
   bool register = false, busy = false, checkingSession = true;
+  bool hidePassword = true, hideConfirmPassword = true;
   String? error;
+
   static const base = String.fromEnvironment('API_BASE_URL', defaultValue: 'http://10.0.2.2:8000');
+  static const bg = Color(0xFF06131D);
+  static const card = Color(0xFF0A202D);
+  static const field = Color(0xFF102B3A);
+  static const cyan = Color(0xFF19D6E5);
+  static const muted = Color(0xFF9BBBCB);
+  static const stroke = Color(0xFF28566B);
+
   @override
   void initState() {
     super.initState();
     restoreSession();
   }
+
   Future<void> restoreSession() async {
     try {
       final token = await storage.read(key: 'wasel_access_token').timeout(const Duration(seconds: 4));
@@ -48,18 +60,37 @@ class _AuthScreenState extends State<AuthScreen> {
     } catch (_) {}
     if (mounted) setState(() => checkingSession = false);
   }
+
   @override
-  void dispose() { name.dispose(); username.dispose(); password.dispose(); inviteCode.dispose(); confirmPassword.dispose(); super.dispose(); }
+  void dispose() {
+    name.dispose();
+    username.dispose();
+    password.dispose();
+    inviteCode.dispose();
+    confirmPassword.dispose();
+    super.dispose();
+  }
+
   Future<void> submit() async {
-    if (!form.currentState!.validate()) return;
+    FocusManager.instance.primaryFocus?.unfocus();
+    if (!(form.currentState?.validate() ?? false)) return;
     setState(() { busy = true; error = null; });
     try {
-      final response = await http.post(Uri.parse('$base/api/auth/${register ? 'register' : 'login'}'),
+      final response = await http.post(
+        Uri.parse(base + '/api/auth/' + (register ? 'register' : 'login')),
         headers: {'Content-Type': 'application/json'},
-        body: jsonEncode({'username': username.text.trim(), 'password': password.text,
-          if (register) 'display_name': name.text.trim(), if (register) 'invite_code': inviteCode.text.trim()}));
-      final body = jsonDecode(response.body) as Map<String, dynamic>;
-      if (response.statusCode < 200 || response.statusCode >= 300) throw Exception(body['detail'] ?? 'تعذر تنفيذ الطلب');
+        body: jsonEncode({
+          'username': username.text.trim(),
+          'password': password.text,
+          if (register) 'display_name': name.text.trim(),
+          if (register) 'invite_code': inviteCode.text.trim(),
+        }),
+      ).timeout(const Duration(seconds: 20));
+      final dynamic decoded = jsonDecode(response.body);
+      final body = decoded is Map<String, dynamic> ? decoded : <String, dynamic>{};
+      if (response.statusCode < 200 || response.statusCode >= 300) {
+        throw Exception(body['detail'] ?? 'تعذر تنفيذ الطلب، حاول مرة أخرى');
+      }
       final user = body['user'] as Map<String, dynamic>;
       final token = body['access_token'] as String;
       await storage.write(key: 'wasel_access_token', value: token);
@@ -70,342 +101,239 @@ class _AuthScreenState extends State<AuthScreen> {
       ));
     } catch (e) {
       if (mounted) setState(() => error = e.toString().replaceFirst('Exception: ', ''));
-    } finally { if (mounted) setState(() => busy = false); }
+    } finally {
+      if (mounted) setState(() => busy = false);
+    }
   }
+
+  InputDecoration decoration(String hint, IconData icon, {Widget? suffix}) => InputDecoration(
+    hintText: hint,
+    hintStyle: const TextStyle(color: muted, fontSize: 15, fontWeight: FontWeight.w400),
+    prefixIcon: Icon(icon, color: cyan, size: 22),
+    suffixIcon: suffix,
+    filled: true,
+    fillColor: field,
+    contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 17),
+    enabledBorder: OutlineInputBorder(
+      borderRadius: BorderRadius.circular(15),
+      borderSide: const BorderSide(color: stroke, width: 1.2),
+    ),
+    focusedBorder: OutlineInputBorder(
+      borderRadius: BorderRadius.circular(15),
+      borderSide: const BorderSide(color: cyan, width: 2),
+    ),
+    errorBorder: OutlineInputBorder(
+      borderRadius: BorderRadius.circular(15),
+      borderSide: const BorderSide(color: Color(0xFFFF737D), width: 1.2),
+    ),
+    focusedErrorBorder: OutlineInputBorder(
+      borderRadius: BorderRadius.circular(15),
+      borderSide: const BorderSide(color: Color(0xFFFF737D), width: 1.6),
+    ),
+  );
+
+  Widget inputField({
+    required TextEditingController controller,
+    required String hint,
+    required IconData icon,
+    required TextInputAction action,
+    TextInputType keyboardType = TextInputType.text,
+    String? Function(String?)? validator,
+    bool obscure = false,
+    Widget? suffix,
+    bool capitalize = false,
+    void Function(String)? onSubmitted,
+  }) => TextFormField(
+    controller: controller,
+    enabled: !busy,
+    readOnly: false,
+    showCursor: true,
+    enableInteractiveSelection: true,
+    keyboardType: keyboardType,
+    textInputAction: action,
+    textCapitalization: capitalize ? TextCapitalization.words : TextCapitalization.none,
+    obscureText: obscure,
+    autocorrect: false,
+    enableSuggestions: !obscure,
+    cursorColor: cyan,
+    style: const TextStyle(color: Colors.white, fontSize: 16, height: 1.25),
+    decoration: decoration(hint, icon, suffix: suffix),
+    validator: validator,
+    onFieldSubmitted: onSubmitted,
+  );
+
+  Widget visibilityButton(bool hidden, VoidCallback onTap) => IconButton(
+    tooltip: hidden ? 'إظهار كلمة المرور' : 'إخفاء كلمة المرور',
+    onPressed: onTap,
+    icon: Icon(hidden ? Icons.visibility_outlined : Icons.visibility_off_outlined, color: muted),
+  );
+
   @override
   Widget build(BuildContext context) {
     if (checkingSession) {
       return const Scaffold(
-        backgroundColor: Color(0xFF06131D),
-        body: Center(child: CircularProgressIndicator(color: Color(0xFF19D6E5))),
+        backgroundColor: bg,
+        body: Center(child: CircularProgressIndicator(color: cyan)),
       );
     }
-
-    const background = Color(0xFF06131D);
-    const panel = Color(0xFF0A202D);
-    const border = Color(0xFF20516A);
-    const cyan = Color(0xFF19D6E5);
-    const muted = Color(0xFF9BBBCB);
-    InputDecoration fieldDecoration(String label, IconData icon, {Widget? suffix}) =>
-        InputDecoration(
-          hintText: label,
-          hintStyle: const TextStyle(color: Color(0xFF9BBBCB), fontSize: 14),
-          labelStyle: const TextStyle(color: muted, fontSize: 14),
-          prefixIcon: Icon(icon, color: cyan, size: 21),
-          prefixIconConstraints: const BoxConstraints(minWidth: 48, minHeight: 48),
-          suffixIcon: suffix,
-          filled: true,
-          fillColor: const Color(0xFF0B2635),
-          isDense: true,
-          constraints: const BoxConstraints(minHeight: 60),
-          contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 16),
-          enabledBorder: OutlineInputBorder(
-            borderRadius: BorderRadius.circular(17),
-            borderSide: const BorderSide(color: border, width: 1.2),
-          ),
-          focusedBorder: OutlineInputBorder(
-            borderRadius: BorderRadius.circular(17),
-            borderSide: const BorderSide(color: cyan, width: 1.5),
-          ),
-          errorBorder: OutlineInputBorder(
-            borderRadius: BorderRadius.circular(17),
-            borderSide: const BorderSide(color: Color(0xFFFF6B75)),
-          ),
-          focusedErrorBorder: OutlineInputBorder(
-            borderRadius: BorderRadius.circular(17),
-            borderSide: const BorderSide(color: Color(0xFFFF6B75), width: 1.5),
-          ),
-        );
-
     return Scaffold(
-      backgroundColor: background,
+      backgroundColor: bg,
+      resizeToAvoidBottomInset: true,
       body: SafeArea(
-        child: Center(
-          child: SingleChildScrollView(
-            padding: const EdgeInsets.fromLTRB(22, 22, 22, 28),
-            child: Center(
-              child: ConstrainedBox(
-                constraints: const BoxConstraints(maxWidth: 460),
-                child: Column(
-                  mainAxisSize: MainAxisSize.min,
-                  crossAxisAlignment: CrossAxisAlignment.stretch,
-                  children: [
-                    const SizedBox(height: 8),
-                    Center(
-                      child: SizedBox(
-                        width: 82,
-                        height: 72,
-                        child: Stack(
-                          children: [
-                            Positioned(
-                              left: 6,
-                              top: 2,
-                              child: Container(
-                                width: 48,
-                                height: 43,
-                                decoration: BoxDecoration(
-                                  gradient: const LinearGradient(
-                                    colors: [Color(0xFF66F0E8), Color(0xFF13B8D5)],
-                                  ),
-                                  borderRadius: BorderRadius.circular(13),
-                                ),
+        child: LayoutBuilder(
+          builder: (context, constraints) => SingleChildScrollView(
+            keyboardDismissBehavior: ScrollViewKeyboardDismissBehavior.onDrag,
+            padding: const EdgeInsets.fromLTRB(22, 22, 22, 26),
+            child: ConstrainedBox(
+              constraints: BoxConstraints(minHeight: constraints.maxHeight - 48),
+              child: Center(
+                child: ConstrainedBox(
+                  constraints: const BoxConstraints(maxWidth: 440),
+                  child: Form(
+                    key: form,
+                    child: Column(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      crossAxisAlignment: CrossAxisAlignment.stretch,
+                      children: [
+                        Center(
+                          child: Container(
+                            width: 76,
+                            height: 76,
+                            decoration: BoxDecoration(
+                              gradient: const LinearGradient(
+                                begin: Alignment.topLeft,
+                                end: Alignment.bottomRight,
+                                colors: [Color(0xFF5BEDE6), Color(0xFF168FE0)],
                               ),
+                              borderRadius: BorderRadius.circular(23),
+                              boxShadow: const [BoxShadow(color: Color(0x3319D6E5), blurRadius: 24, offset: Offset(0, 8))],
                             ),
-                            Positioned(
-                              right: 4,
-                              bottom: 3,
-                              child: Container(
-                                width: 51,
-                                height: 44,
-                                decoration: BoxDecoration(
-                                  gradient: const LinearGradient(
-                                    colors: [Color(0xFF22E4ED), Color(0xFF168BE0)],
-                                  ),
-                                  borderRadius: BorderRadius.circular(13),
-                                  border: Border.all(color: background, width: 2),
-                                ),
-                                child: const Center(
-                                  child: Icon(Icons.more_horiz_rounded, color: background, size: 30),
-                                ),
-                              ),
-                            ),
-                          ],
+                            child: const Icon(Icons.forum_rounded, color: bg, size: 43),
+                          ),
                         ),
-                      ),
-                    ),
-                    const SizedBox(height: 12),
-                    const Text(
-                      'واصل',
-                      textAlign: TextAlign.center,
-                      style: TextStyle(
-                        color: Colors.white,
-                        fontSize: 34,
-                        fontWeight: FontWeight.w800,
-                        letterSpacing: 0.3,
-                      ),
-                    ),
-                    const SizedBox(height: 5),
-                    const Text(
-                      'تواصل بلا حدود',
-                      textAlign: TextAlign.center,
-                      style: TextStyle(color: muted, fontSize: 16),
-                    ),
-                    const SizedBox(height: 26),
-                    Container(
-                      padding: const EdgeInsets.fromLTRB(18, 23, 18, 20),
-                      decoration: BoxDecoration(
-                        color: panel.withValues(alpha: 0.96),
-                        borderRadius: BorderRadius.circular(25),
-                        border: Border.all(color: border, width: 1.2),
-                        boxShadow: const [
-                          BoxShadow(color: Color(0x2219D6E5), blurRadius: 24, offset: Offset(0, 8)),
-                        ],
-                      ),
-                      child: Form(
-                        key: form,
-                        child: Column(
-                          mainAxisSize: MainAxisSize.min,
-                          crossAxisAlignment: CrossAxisAlignment.stretch,
-                          children: [
-                            Text(
-                              register ? 'إنشاء حساب جديد' : 'مرحبًا بعودتك',
-                              textAlign: TextAlign.center,
-                              style: const TextStyle(
-                                color: Colors.white,
-                                fontSize: 25,
-                                fontWeight: FontWeight.w800,
-                              ),
-                            ),
-                            const SizedBox(height: 8),
-                            Text(
-                              register
-                                  ? 'انضم إلى واصل وابدأ رحلتك في عالم التواصل'
-                                  : 'سجّل دخولك للتواصل مع أصدقائك',
-                              textAlign: TextAlign.center,
-                              style: const TextStyle(color: muted, fontSize: 13.5, height: 1.5),
-                            ),
-                            const SizedBox(height: 24),
-                            if (register) ...[
-                              SizedBox(
-                                height: 60,
-                                child: TextFormField(
-                                controller: name,
-                                style: const TextStyle(color: Colors.white, fontSize: 16),
-                                cursorColor: cyan,
-                                showCursor: true,
-                                readOnly: false,
-                                keyboardType: TextInputType.name,
-                                textCapitalization: TextCapitalization.words,
-                                decoration: fieldDecoration('اكتب اسمك الكامل', Icons.badge_outlined),
-                                textInputAction: TextInputAction.next,
-                                validator: (v) => v == null || v.trim().isEmpty ? 'أدخل الاسم الظاهر' : null,
-                                ),
-                              ),
-                              const SizedBox(height: 13),
-                              SizedBox(
-                                height: 60,
-                                child: TextFormField(
-                                controller: inviteCode,
-                                style: const TextStyle(color: Colors.white, fontSize: 16),
-                                cursorColor: cyan,
-                                showCursor: true,
-                                readOnly: false,
-                                keyboardType: TextInputType.text,
-                                obscureText: false,
-                                decoration: fieldDecoration('أدخل رمز الدعوة', Icons.vpn_key_outlined),
-                                textInputAction: TextInputAction.next,
-                                validator: (v) => v == null || v.trim().length < 8 ? 'أدخل رمز الدعوة الصحيح' : null,
-                                ),
-                              ),
-                              const SizedBox(height: 13),
-                              SizedBox(
-                                height: 60,
-                                child: TextFormField(
-                                  controller: password,
-                                  style: const TextStyle(color: Colors.white, fontSize: 16),
-                                  cursorColor: cyan,
-                                  showCursor: true,
-                                  readOnly: false,
-                                  keyboardType: TextInputType.visiblePassword,
-                                  obscureText: true,
-                                  enableSuggestions: false,
-                                  autocorrect: false,
-                                  textInputAction: TextInputAction.next,
-                                  decoration: fieldDecoration('كلمة المرور', Icons.lock_outline_rounded),
-                                  validator: (v) => v == null || v.length < 8 ? 'كلمة المرور يجب أن تكون 8 أحرف على الأقل' : null,
-                                ),
-                              ),
-                              const SizedBox(height: 13),
-                              SizedBox(
-                                height: 60,
-                                child: TextFormField(
-                                  controller: confirmPassword,
-                                  style: const TextStyle(color: Colors.white, fontSize: 16),
-                                  cursorColor: cyan,
-                                  showCursor: true,
-                                  readOnly: false,
-                                  keyboardType: TextInputType.visiblePassword,
-                                  obscureText: true,
-                                  enableSuggestions: false,
-                                  autocorrect: false,
-                                  textInputAction: TextInputAction.done,
-                                  decoration: fieldDecoration('تأكيد كلمة المرور', Icons.lock_person_outlined),
-                                  validator: (v) => v != password.text ? 'كلمتا المرور غير متطابقتين' : null,
-                                ),
-                              ),
-                            ],
-                            SizedBox(
-                              height: 60,
-                              child: TextFormField(
-                              controller: username,
-                              style: const TextStyle(color: Colors.white, fontSize: 16),
-                              cursorColor: cyan,
-                              showCursor: true,
-                              readOnly: false,
-                              enabled: true,
-                              keyboardType: TextInputType.text,
-                              textCapitalization: TextCapitalization.none,
-                              enableSuggestions: false,
-                              decoration: fieldDecoration('اسم المستخدم', Icons.person_outline_rounded),
-                              textInputAction: TextInputAction.next,
-                              autocorrect: false,
-                              validator: (v) => v == null || v.trim().length < 3 ? 'أدخل اسم مستخدم صحيحًا' : null,
-                              ),
-                            ),
-                            const SizedBox(height: 13),
-                            if (!register) ...[
-                              SizedBox(
-                                height: 60,
-                                child: TextFormField(
-                                  controller: password,
-                                  style: const TextStyle(color: Colors.white, fontSize: 16),
-                                  cursorColor: cyan,
-                                  showCursor: true,
-                                  readOnly: false,
-                                  enabled: true,
-                                  keyboardType: TextInputType.visiblePassword,
-                                  obscureText: true,
-                                  enableSuggestions: false,
-                                  autocorrect: false,
-                                  decoration: fieldDecoration('كلمة المرور', Icons.lock_outline_rounded),
-                                  textInputAction: TextInputAction.done,
-                                  onFieldSubmitted: (_) => busy ? null : submit(),
-                                  validator: (v) => v == null || v.length < 8 ? 'كلمة المرور يجب أن تكون 8 أحرف على الأقل' : null,
-                                ),
-                              ),
-                            ],
-                            if (error != null) ...[
-                              const SizedBox(height: 12),
-                              Text(error!, style: const TextStyle(color: Color(0xFFFF8790), fontSize: 13)),
-                            ],
-                            const SizedBox(height: 21),
-                            SizedBox(
-                              height: 54,
-                              child: FilledButton(
-                                style: FilledButton.styleFrom(
-                                  backgroundColor: cyan,
-                                  foregroundColor: const Color(0xFF03202A),
-                                  disabledBackgroundColor: cyan.withValues(alpha: 0.45),
-                                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(17)),
-                                  textStyle: const TextStyle(fontSize: 16, fontWeight: FontWeight.w800),
-                                ),
-                                onPressed: busy ? null : submit,
-                                child: busy
-                                    ? const SizedBox(width: 23, height: 23, child: CircularProgressIndicator(strokeWidth: 2, color: background))
-                                    : Row(
-                                        mainAxisAlignment: MainAxisAlignment.center,
-                                        children: [
-                                          Icon(register ? Icons.person_add_alt_1_rounded : Icons.login_rounded, size: 21),
-                                          const SizedBox(width: 10),
-                                          Text(register ? 'إنشاء الحساب' : 'تسجيل الدخول'),
-                                        ],
-                                      ),
-                              ),
-                            ),
-                            const SizedBox(height: 15),
-                            Row(
-                              children: [
-                                const Expanded(child: Divider(color: border)),
-                                Padding(
-                                  padding: const EdgeInsets.symmetric(horizontal: 12),
-                                  child: Text('أو', style: TextStyle(color: muted.withValues(alpha: 0.9))),
-                                ),
-                                const Expanded(child: Divider(color: border)),
-                              ],
-                            ),
-                            const SizedBox(height: 13),
-                            OutlinedButton.icon(
-                              onPressed: null,
-                              icon: const Icon(Icons.shield_outlined, size: 19),
-                              label: const Text('بياناتك آمنة معنا'),
-                              style: OutlinedButton.styleFrom(
-                                foregroundColor: muted,
-                                disabledForegroundColor: muted,
-                                side: const BorderSide(color: border),
-                                minimumSize: const Size.fromHeight(45),
-                                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(15)),
-                              ),
-                            ),
-                            const SizedBox(height: 11),
-                            TextButton(
-                              onPressed: busy ? null : () => setState(() { register = !register; error = null; }),
-                              style: TextButton.styleFrom(foregroundColor: cyan),
-                              child: Text(
-                                register ? 'لديك حساب بالفعل؟ تسجيل الدخول' : 'ليس لديك حساب؟ أنشئ حسابًا جديدًا',
+                        const SizedBox(height: 13),
+                        const Text('واصل', textAlign: TextAlign.center,
+                          style: TextStyle(color: Colors.white, fontSize: 36, fontWeight: FontWeight.w800)),
+                        const SizedBox(height: 4),
+                        const Text('تواصل بلا حدود', textAlign: TextAlign.center,
+                          style: TextStyle(color: muted, fontSize: 16)),
+                        const SizedBox(height: 25),
+                        Container(
+                          padding: const EdgeInsets.all(20),
+                          decoration: BoxDecoration(
+                            color: card,
+                            borderRadius: BorderRadius.circular(25),
+                            border: Border.all(color: stroke, width: 1.2),
+                            boxShadow: const [BoxShadow(color: Color(0x1A19D6E5), blurRadius: 22, offset: Offset(0, 7))],
+                          ),
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.stretch,
+                            children: [
+                              Text(register ? 'إنشاء حساب جديد' : 'مرحبًا بعودتك',
                                 textAlign: TextAlign.center,
+                                style: const TextStyle(color: Colors.white, fontSize: 25, fontWeight: FontWeight.w800)),
+                              const SizedBox(height: 7),
+                              Text(register ? 'أدخل بياناتك للانضمام إلى واصل' : 'سجّل دخولك للتواصل مع أصدقائك',
+                                textAlign: TextAlign.center,
+                                style: const TextStyle(color: muted, fontSize: 14, height: 1.5)),
+                              const SizedBox(height: 23),
+                              if (register) ...[
+                                inputField(controller: name, hint: 'اكتب اسمك الكامل', icon: Icons.badge_outlined,
+                                  action: TextInputAction.next, capitalize: true,
+                                  validator: (v) => v == null || v.trim().isEmpty ? 'يرجى كتابة اسمك الكامل' : null),
+                                const SizedBox(height: 13),
+                                inputField(controller: inviteCode, hint: 'رمز الدعوة', icon: Icons.vpn_key_outlined,
+                                  action: TextInputAction.next,
+                                  validator: (v) => v == null || v.trim().length < 8 ? 'أدخل رمز الدعوة الصحيح' : null),
+                                const SizedBox(height: 13),
+                              ],
+                              inputField(controller: username, hint: 'اسم المستخدم', icon: Icons.person_outline_rounded,
+                                action: TextInputAction.next,
+                                validator: (v) => v == null || v.trim().length < 3 ? 'اسم المستخدم يجب أن يكون 3 أحرف على الأقل' : null),
+                              const SizedBox(height: 13),
+                              inputField(controller: password, hint: 'كلمة المرور', icon: Icons.lock_outline_rounded,
+                                action: register ? TextInputAction.next : TextInputAction.done,
+                                keyboardType: TextInputType.visiblePassword, obscure: hidePassword,
+                                suffix: visibilityButton(hidePassword, () => setState(() => hidePassword = !hidePassword)),
+                                validator: (v) => v == null || v.length < 8 ? 'كلمة المرور يجب أن تكون 8 أحرف على الأقل' : null,
+                                onSubmitted: register ? null : (_) => submit()),
+                              if (register) ...[
+                                const SizedBox(height: 13),
+                                inputField(controller: confirmPassword, hint: 'تأكيد كلمة المرور', icon: Icons.lock_person_outlined,
+                                  action: TextInputAction.done, keyboardType: TextInputType.visiblePassword,
+                                  obscure: hideConfirmPassword,
+                                  suffix: visibilityButton(hideConfirmPassword, () => setState(() => hideConfirmPassword = !hideConfirmPassword)),
+                                  validator: (v) => v != password.text ? 'كلمتا المرور غير متطابقتين' : null,
+                                  onSubmitted: (_) => submit()),
+                              ],
+                              if (error != null) ...[
+                                const SizedBox(height: 13),
+                                Container(
+                                  padding: const EdgeInsets.all(12),
+                                  decoration: BoxDecoration(color: const Color(0x33FF737D), borderRadius: BorderRadius.circular(12),
+                                    border: Border.all(color: const Color(0x66FF737D))),
+                                  child: Text(error!, textAlign: TextAlign.center,
+                                    style: const TextStyle(color: Color(0xFFFFA0A6), fontSize: 13)),
+                                ),
+                              ],
+                              const SizedBox(height: 20),
+                              SizedBox(
+                                height: 56,
+                                child: FilledButton(
+                                  onPressed: busy ? null : submit,
+                                  style: FilledButton.styleFrom(
+                                    backgroundColor: cyan, foregroundColor: bg,
+                                    disabledBackgroundColor: cyan.withValues(alpha: 0.5),
+                                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+                                    textStyle: const TextStyle(fontSize: 17, fontWeight: FontWeight.w800),
+                                  ),
+                                  child: busy
+                                    ? const SizedBox(width: 22, height: 22, child: CircularProgressIndicator(strokeWidth: 2, color: bg))
+                                    : Row(mainAxisAlignment: MainAxisAlignment.center, children: [
+                                        Icon(register ? Icons.person_add_alt_1_rounded : Icons.login_rounded, size: 22),
+                                        const SizedBox(width: 10),
+                                        Text(register ? 'إنشاء الحساب' : 'تسجيل الدخول'),
+                                      ]),
+                                ),
                               ),
-                            ),
-                          ],
+                              const SizedBox(height: 17),
+                              Row(children: [
+                                const Expanded(child: Divider(color: stroke)),
+                                Padding(padding: const EdgeInsets.symmetric(horizontal: 12),
+                                  child: Text('أو', style: TextStyle(color: muted.withValues(alpha: 0.9)))),
+                                const Expanded(child: Divider(color: stroke)),
+                              ]),
+                              const SizedBox(height: 14),
+                              OutlinedButton.icon(
+                                onPressed: null,
+                                icon: const Icon(Icons.shield_outlined, size: 19),
+                                label: const Text('بياناتك آمنة معنا'),
+                                style: OutlinedButton.styleFrom(
+                                  foregroundColor: muted, disabledForegroundColor: muted,
+                                  side: const BorderSide(color: stroke),
+                                  padding: const EdgeInsets.symmetric(vertical: 14),
+                                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(15)),
+                                ),
+                              ),
+                              const SizedBox(height: 13),
+                              TextButton(
+                                onPressed: busy ? null : () {
+                                  FocusManager.instance.primaryFocus?.unfocus();
+                                  setState(() { register = !register; error = null; form.currentState?.reset(); });
+                                },
+                                style: TextButton.styleFrom(foregroundColor: cyan, padding: const EdgeInsets.symmetric(vertical: 12)),
+                                child: Text(register ? 'لديك حساب بالفعل؟ سجّل الدخول' : 'ليس لديك حساب؟ أنشئ حسابًا جديدًا',
+                                  textAlign: TextAlign.center, style: const TextStyle(fontSize: 15)),
+                              ),
+                            ],
+                          ),
                         ),
-                      ),
+                        const SizedBox(height: 18),
+                        const Text('واصل — تواصل أقرب، أينما كنت', textAlign: TextAlign.center,
+                          style: TextStyle(color: Color(0xFF68899A), fontSize: 12)),
+                      ],
                     ),
-                    const SizedBox(height: 18),
-                    const Text(
-                      'واصل — تواصل أقرب، أينما كنت',
-                      textAlign: TextAlign.center,
-                      style: TextStyle(color: Color(0xFF68899A), fontSize: 12),
-                    ),
-                  ],
+                  ),
                 ),
               ),
             ),
