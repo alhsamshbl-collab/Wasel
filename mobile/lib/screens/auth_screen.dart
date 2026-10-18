@@ -75,122 +75,261 @@ class _AuthScreenState extends State<AuthScreen> {
   Widget build(BuildContext context) {
     if (checkingSession) {
       return const Scaffold(
-        body: Center(child: CircularProgressIndicator()),
+        backgroundColor: Color(0xFF06131D),
+        body: Center(child: CircularProgressIndicator(color: Color(0xFF19D6E5))),
       );
     }
 
-    final isDark = Theme.of(context).brightness == Brightness.dark;
-    final fieldFill = isDark ? const Color(0xFF172326) : Colors.white;
-    final fieldText = isDark ? Colors.white : const Color(0xFF172326);
-    final fieldLabel = isDark ? const Color(0xFFD2DEE0) : const Color(0xFF526368);
-
-    InputDecoration decoration(String label) => InputDecoration(
-      labelText: label,
-      labelStyle: TextStyle(color: fieldLabel),
-      filled: true,
-      fillColor: fieldFill,
-      contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
-      border: OutlineInputBorder(
-        borderRadius: BorderRadius.circular(14),
-        borderSide: BorderSide(color: isDark ? const Color(0xFF344448) : const Color(0xFFD7E1E3)),
-      ),
-      enabledBorder: OutlineInputBorder(
-        borderRadius: BorderRadius.circular(14),
-        borderSide: BorderSide(color: isDark ? const Color(0xFF344448) : const Color(0xFFD7E1E3)),
-      ),
-      focusedBorder: OutlineInputBorder(
-        borderRadius: BorderRadius.circular(14),
-        borderSide: const BorderSide(color: Color(0xFF25B8C2), width: 1.8),
-      ),
-    );
+    const background = Color(0xFF06131D);
+    const panel = Color(0xFF0A202D);
+    const border = Color(0xFF20516A);
+    const cyan = Color(0xFF19D6E5);
+    const muted = Color(0xFF9BBBCB);
+    InputDecoration fieldDecoration(String label, IconData icon, {Widget? suffix}) =>
+        InputDecoration(
+          labelText: label,
+          labelStyle: const TextStyle(color: muted, fontSize: 14),
+          prefixIcon: Icon(icon, color: cyan, size: 21),
+          suffixIcon: suffix,
+          filled: true,
+          fillColor: const Color(0xFF0B2635),
+          isDense: true,
+          contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 18),
+          enabledBorder: OutlineInputBorder(
+            borderRadius: BorderRadius.circular(17),
+            borderSide: const BorderSide(color: border, width: 1.2),
+          ),
+          focusedBorder: OutlineInputBorder(
+            borderRadius: BorderRadius.circular(17),
+            borderSide: const BorderSide(color: cyan, width: 1.5),
+          ),
+          errorBorder: OutlineInputBorder(
+            borderRadius: BorderRadius.circular(17),
+            borderSide: const BorderSide(color: Color(0xFFFF6B75)),
+          ),
+          focusedErrorBorder: OutlineInputBorder(
+            borderRadius: BorderRadius.circular(17),
+            borderSide: const BorderSide(color: Color(0xFFFF6B75), width: 1.5),
+          ),
+        );
 
     return Scaffold(
-      backgroundColor: Theme.of(context).scaffoldBackgroundColor,
+      backgroundColor: background,
       body: SafeArea(
-        child: LayoutBuilder(
-          builder: (context, constraints) => SingleChildScrollView(
-            padding: const EdgeInsets.fromLTRB(24, 28, 24, 28),
-            child: ConstrainedBox(
-              constraints: BoxConstraints(minHeight: constraints.maxHeight - 56),
-              child: Center(
-                child: ConstrainedBox(
-                  constraints: const BoxConstraints(maxWidth: 420),
-                  child: Form(
-                    key: form,
-                    child: Column(
-                      mainAxisAlignment: MainAxisAlignment.center,
-                      crossAxisAlignment: CrossAxisAlignment.stretch,
-                      children: [
-                        const Icon(Icons.forum_rounded, size: 58, color: Color(0xFF25B8C2)),
-                        const SizedBox(height: 14),
-                        Text(
-                          register ? 'إنشاء حساب في واصل' : 'مرحبًا بعودتك',
-                          textAlign: TextAlign.center,
-                          style: Theme.of(context).textTheme.headlineSmall?.copyWith(fontWeight: FontWeight.w700),
+        child: Center(
+          child: SingleChildScrollView(
+            padding: const EdgeInsets.fromLTRB(22, 22, 22, 28),
+            child: Center(
+              child: ConstrainedBox(
+                constraints: const BoxConstraints(maxWidth: 460),
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    const SizedBox(height: 8),
+                    Center(
+                      child: SizedBox(
+                        width: 82,
+                        height: 72,
+                        child: Stack(
+                          children: [
+                            Positioned(
+                              left: 6,
+                              top: 2,
+                              child: Container(
+                                width: 48,
+                                height: 43,
+                                decoration: BoxDecoration(
+                                  gradient: const LinearGradient(
+                                    colors: [Color(0xFF66F0E8), Color(0xFF13B8D5)],
+                                  ),
+                                  borderRadius: BorderRadius.circular(13),
+                                ),
+                              ),
+                            ),
+                            Positioned(
+                              right: 4,
+                              bottom: 3,
+                              child: Container(
+                                width: 51,
+                                height: 44,
+                                decoration: BoxDecoration(
+                                  gradient: const LinearGradient(
+                                    colors: [Color(0xFF22E4ED), Color(0xFF168BE0)],
+                                  ),
+                                  borderRadius: BorderRadius.circular(13),
+                                  border: Border.all(color: background, width: 2),
+                                ),
+                                child: const Center(
+                                  child: Icon(Icons.more_horiz_rounded, color: background, size: 30),
+                                ),
+                              ),
+                            ),
+                          ],
                         ),
-                        const SizedBox(height: 8),
-                        Text('تواصل بلا حدود', textAlign: TextAlign.center,
-                          style: Theme.of(context).textTheme.bodyLarge),
-                        const SizedBox(height: 28),
-                        if (register) ...[
-                          TextFormField(
-                            controller: name,
-                            style: TextStyle(color: fieldText),
-                            decoration: decoration('الاسم الظاهر'),
-                            textInputAction: TextInputAction.next,
-                            validator: (v) => v == null || v.trim().isEmpty ? 'أدخل الاسم الظاهر' : null,
-                          ),
-                          const SizedBox(height: 14),
-                          TextFormField(
-                            controller: inviteCode,
-                            style: TextStyle(color: fieldText),
-                            obscureText: true,
-                            decoration: decoration('رمز الدعوة الخاص'),
-                            textInputAction: TextInputAction.next,
-                            validator: (v) => v == null || v.trim().length < 8 ? 'أدخل رمز الدعوة' : null,
-                          ),
-                          const SizedBox(height: 14),
-                        ],
-                        TextFormField(
-                          controller: username,
-                          style: TextStyle(color: fieldText),
-                          decoration: decoration('اسم المستخدم'),
-                          textInputAction: TextInputAction.next,
-                          autocorrect: false,
-                          validator: (v) => v == null || v.trim().length < 3 ? 'أدخل اسم مستخدم صحيحًا' : null,
-                        ),
-                        const SizedBox(height: 14),
-                        TextFormField(
-                          controller: password,
-                          style: TextStyle(color: fieldText),
-                          obscureText: true,
-                          decoration: decoration('كلمة المرور (8 أحرف على الأقل)'),
-                          textInputAction: TextInputAction.done,
-                          onFieldSubmitted: (_) => busy ? null : submit(),
-                          validator: (v) => v == null || v.length < 8 ? 'كلمة المرور قصيرة' : null,
-                        ),
-                        if (error != null) Padding(
-                          padding: const EdgeInsets.only(top: 12),
-                          child: Text(error!, style: TextStyle(color: Theme.of(context).colorScheme.error)),
-                        ),
-                        const SizedBox(height: 20),
-                        SizedBox(
-                          height: 52,
-                          child: FilledButton(
-                            onPressed: busy ? null : submit,
-                            child: busy
-                              ? const SizedBox(width: 22, height: 22, child: CircularProgressIndicator(strokeWidth: 2))
-                              : Text(register ? 'إنشاء الحساب' : 'تسجيل الدخول'),
-                          ),
-                        ),
-                        const SizedBox(height: 8),
-                        TextButton(
-                          onPressed: busy ? null : () => setState(() { register = !register; error = null; }),
-                          child: Text(register ? 'لديك حساب؟ تسجيل الدخول' : 'ليس لديك حساب؟ أنشئ حسابًا'),
-                        ),
-                      ],
+                      ),
                     ),
-                  ),
+                    const SizedBox(height: 12),
+                    const Text(
+                      'واصل',
+                      textAlign: TextAlign.center,
+                      style: TextStyle(
+                        color: Colors.white,
+                        fontSize: 34,
+                        fontWeight: FontWeight.w800,
+                        letterSpacing: 0.3,
+                      ),
+                    ),
+                    const SizedBox(height: 5),
+                    const Text(
+                      'تواصل بلا حدود',
+                      textAlign: TextAlign.center,
+                      style: TextStyle(color: muted, fontSize: 16),
+                    ),
+                    const SizedBox(height: 26),
+                    Container(
+                      padding: const EdgeInsets.fromLTRB(18, 23, 18, 20),
+                      decoration: BoxDecoration(
+                        color: panel.withValues(alpha: 0.96),
+                        borderRadius: BorderRadius.circular(25),
+                        border: Border.all(color: border, width: 1.2),
+                        boxShadow: const [
+                          BoxShadow(color: Color(0x2219D6E5), blurRadius: 24, offset: Offset(0, 8)),
+                        ],
+                      ),
+                      child: Form(
+                        key: form,
+                        child: Column(
+                          mainAxisSize: MainAxisSize.min,
+                          crossAxisAlignment: CrossAxisAlignment.stretch,
+                          children: [
+                            Text(
+                              register ? 'إنشاء حساب جديد' : 'مرحبًا بعودتك',
+                              textAlign: TextAlign.center,
+                              style: const TextStyle(
+                                color: Colors.white,
+                                fontSize: 25,
+                                fontWeight: FontWeight.w800,
+                              ),
+                            ),
+                            const SizedBox(height: 8),
+                            Text(
+                              register
+                                  ? 'انضم إلى واصل وابدأ رحلتك في عالم التواصل'
+                                  : 'سجّل دخولك للتواصل مع أصدقائك',
+                              textAlign: TextAlign.center,
+                              style: const TextStyle(color: muted, fontSize: 13.5, height: 1.5),
+                            ),
+                            const SizedBox(height: 24),
+                            if (register) ...[
+                              TextFormField(
+                                controller: name,
+                                style: const TextStyle(color: Colors.white),
+                                decoration: fieldDecoration('الاسم الظاهر', Icons.badge_outlined),
+                                textInputAction: TextInputAction.next,
+                                validator: (v) => v == null || v.trim().isEmpty ? 'أدخل الاسم الظاهر' : null,
+                              ),
+                              const SizedBox(height: 13),
+                              TextFormField(
+                                controller: inviteCode,
+                                style: const TextStyle(color: Colors.white),
+                                obscureText: true,
+                                decoration: fieldDecoration('رمز الدعوة الخاص', Icons.vpn_key_outlined),
+                                textInputAction: TextInputAction.next,
+                                validator: (v) => v == null || v.trim().length < 8 ? 'أدخل رمز الدعوة الصحيح' : null,
+                              ),
+                              const SizedBox(height: 13),
+                            ],
+                            TextFormField(
+                              controller: username,
+                              style: const TextStyle(color: Colors.white),
+                              decoration: fieldDecoration('اسم المستخدم', Icons.person_outline_rounded),
+                              textInputAction: TextInputAction.next,
+                              autocorrect: false,
+                              validator: (v) => v == null || v.trim().length < 3 ? 'أدخل اسم مستخدم صحيحًا' : null,
+                            ),
+                            const SizedBox(height: 13),
+                            TextFormField(
+                              controller: password,
+                              style: const TextStyle(color: Colors.white),
+                              obscureText: true,
+                              decoration: fieldDecoration('كلمة المرور', Icons.lock_outline_rounded),
+                              textInputAction: TextInputAction.done,
+                              onFieldSubmitted: (_) => busy ? null : submit(),
+                              validator: (v) => v == null || v.length < 8 ? 'كلمة المرور يجب أن تكون 8 أحرف على الأقل' : null,
+                            ),
+                            if (error != null) ...[
+                              const SizedBox(height: 12),
+                              Text(error!, style: const TextStyle(color: Color(0xFFFF8790), fontSize: 13)),
+                            ],
+                            const SizedBox(height: 21),
+                            SizedBox(
+                              height: 54,
+                              child: FilledButton(
+                                style: FilledButton.styleFrom(
+                                  backgroundColor: cyan,
+                                  foregroundColor: const Color(0xFF03202A),
+                                  disabledBackgroundColor: cyan.withValues(alpha: 0.45),
+                                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(17)),
+                                  textStyle: const TextStyle(fontSize: 16, fontWeight: FontWeight.w800),
+                                ),
+                                onPressed: busy ? null : submit,
+                                child: busy
+                                    ? const SizedBox(width: 23, height: 23, child: CircularProgressIndicator(strokeWidth: 2, color: background))
+                                    : Row(
+                                        mainAxisAlignment: MainAxisAlignment.center,
+                                        children: [
+                                          Icon(register ? Icons.person_add_alt_1_rounded : Icons.login_rounded, size: 21),
+                                          const SizedBox(width: 10),
+                                          Text(register ? 'إنشاء الحساب' : 'تسجيل الدخول'),
+                                        ],
+                                      ),
+                              ),
+                            ),
+                            const SizedBox(height: 15),
+                            Row(
+                              children: [
+                                const Expanded(child: Divider(color: border)),
+                                Padding(
+                                  padding: const EdgeInsets.symmetric(horizontal: 12),
+                                  child: Text('أو', style: TextStyle(color: muted.withValues(alpha: 0.9))),
+                                ),
+                                const Expanded(child: Divider(color: border)),
+                              ],
+                            ),
+                            const SizedBox(height: 13),
+                            OutlinedButton.icon(
+                              onPressed: null,
+                              icon: const Icon(Icons.shield_outlined, size: 19),
+                              label: const Text('بياناتك آمنة معنا'),
+                              style: OutlinedButton.styleFrom(
+                                foregroundColor: muted,
+                                disabledForegroundColor: muted,
+                                side: const BorderSide(color: border),
+                                minimumSize: const Size.fromHeight(45),
+                                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(15)),
+                              ),
+                            ),
+                            const SizedBox(height: 11),
+                            TextButton(
+                              onPressed: busy ? null : () => setState(() { register = !register; error = null; }),
+                              style: TextButton.styleFrom(foregroundColor: cyan),
+                              child: Text(
+                                register ? 'لديك حساب بالفعل؟ تسجيل الدخول' : 'ليس لديك حساب؟ أنشئ حسابًا جديدًا',
+                                textAlign: TextAlign.center,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ),
+                    const SizedBox(height: 18),
+                    const Text(
+                      'واصل — تواصل أقرب، أينما كنت',
+                      textAlign: TextAlign.center,
+                      style: TextStyle(color: Color(0xFF68899A), fontSize: 12),
+                    ),
+                  ],
                 ),
               ),
             ),
