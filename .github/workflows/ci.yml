@@ -46,19 +46,25 @@ jobs:
         run: |
           python3 - <<'PY'
           from pathlib import Path
+          import re
           candidates = [Path("android/app/build.gradle"), Path("android/app/build.gradle.kts")]
           found = False
           for path in candidates:
               if not path.exists():
                   continue
               text = path.read_text()
-              updated = text.replace("compileSdk = flutter.compileSdkVersion", "compileSdk = 36")
-              updated = updated.replace("compileSdk flutter.compileSdkVersion", "compileSdk 36")
-              if updated != text:
+              # Flutter templates vary: compileSdk, compileSdkVersion, Groovy or Kotlin DSL.
+              updated, count = re.subn(
+                  r"(?m)^(\s*)(compileSdk(?:Version)?)(\s*(?:=\s*)?)(?:flutter\.compileSdkVersion|[0-9]+)",
+                  r"\g<1>\g<2>\g<3>36",
+                  text,
+              )
+              if count:
                   path.write_text(updated)
+                  print(f"Updated {path}: compileSdk=36")
                   found = True
           if not found:
-              raise SystemExit("Could not find generated Android compileSdk setting")
+              raise SystemExit("Could not find compileSdk/compileSdkVersion in generated Android app Gradle files")
           PY
       - name: Resolve dependencies
         working-directory: mobile
