@@ -46,6 +46,7 @@ class WaselApp extends StatelessWidget {
           ),
           filledButtonTheme: FilledButtonThemeData(style: FilledButton.styleFrom(minimumSize: const Size.fromHeight(52), shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)))),
         ),
+        themeMode: ThemeMode.dark,
         locale: const Locale('ar'),
         supportedLocales: const [Locale('ar'), Locale('en')],
         home: const AuthScreen(),
